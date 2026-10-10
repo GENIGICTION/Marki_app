@@ -660,7 +660,7 @@
 
   function requestRegeneration() {
     openConfirm({
-      title: 'Régénérer le QR pour sécurité ?',
+      title: 'Régénérer le QR code ?',
       message: 'L’ancien QR et l’ancien lien cesseront immédiatement de fonctionner. Les affiches déjà imprimées devront être remplacées.',
       confirmLabel: 'Régénérer le QR',
       danger: true,

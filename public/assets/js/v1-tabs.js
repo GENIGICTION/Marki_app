@@ -502,7 +502,10 @@
       `).join('');
 
       body.querySelectorAll('tr[data-patient-id]').forEach(row => {
-        const open = () => selectPatient(Number(row.dataset.patientId));
+        const open = async () => {
+          await selectPatient(Number(row.dataset.patientId));
+          revealOnSmallScreen(document.querySelector('.v1-patient-profile'));
+        };
         row.addEventListener('click', open);
         row.addEventListener('keydown', event => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -571,10 +574,15 @@
       if (title) title.textContent = patient.full_name;
       setProfileText('patient-view-full-name', patient.full_name, 'Patient');
       setProfileText('patient-view-phone', formatPhoneForDisplay(patient.phone), 'Téléphone non renseigné');
-      setProfileText('patient-view-birth-date', patient.birth_date ? formatDate(patient.birth_date) : '', 'Non renseignée');
-      setProfileText('patient-view-email', patient.email, 'Non renseigné');
-      setProfileText('patient-view-address', patient.address, 'Non renseignée');
-      setProfileText('patient-view-notes', patient.notes_non_medical, 'Aucune note');
+      // Les informations non renseignées ne sont pas affichées.
+      setProfileDetail('patient-view-birth-date', patient.birth_date ? formatDate(patient.birth_date) : '');
+      setProfileDetail('patient-view-email', patient.email);
+      setProfileDetail('patient-view-address', patient.address);
+      setProfileDetail('patient-view-notes', patient.notes_non_medical);
+      const detailsList = document.querySelector('.v1-profile-details');
+      if (detailsList) {
+        detailsList.hidden = !detailsList.querySelector('.v1-profile-detail:not([hidden])');
+      }
       setProfileText('patient-profile-avatar', patientInitials(patient.full_name), '—');
       setInputValue('patient-profile-id', patient.id);
       setInputValue('patient-profile-full-name', patient.full_name);
@@ -597,6 +605,22 @@
       content.hidden = true;
       if (editButton) editButton.hidden = true;
     }
+  }
+
+  function setProfileDetail(id, value) {
+    const element = document.getElementById(id);
+    if (!element) return;
+    const text = String(value || '').trim();
+    element.textContent = text;
+    const detail = element.closest('.v1-profile-detail');
+    if (detail) detail.hidden = text === '';
+  }
+
+  // Mobile / tablette : la fiche est sous la liste, on l'amène à l'écran.
+  function revealOnSmallScreen(element) {
+    if (!element || !window.matchMedia('(max-width: 768px)').matches) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
   }
 
   function setProfileText(id, value, fallback) {
@@ -661,8 +685,11 @@
 
     if (count) count.textContent = String(visits.length);
 
+    const section = container.closest('.v1-history-section');
+    if (section) section.hidden = visits.length === 0;
+
     if (!visits.length) {
-      container.innerHTML = '<div class="v1-empty-panel">Aucune visite enregistrée pour ce médecin.</div>';
+      container.innerHTML = '';
       return;
     }
 
@@ -897,7 +924,10 @@
       `).join('');
 
       body.querySelectorAll('tr[data-queue-id]').forEach(row => {
-        const open = () => selectQueue(Number(row.dataset.queueId));
+        const open = async () => {
+          await selectQueue(Number(row.dataset.queueId));
+          revealOnSmallScreen(document.querySelector('.v1-queue-detail'));
+        };
         row.addEventListener('click', open);
         row.addEventListener('keydown', event => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -969,7 +999,10 @@
         ['Fermeture', formatDateTime(queue.completed_at || queue.closed_at)],
         ['Ouverte par', queue.opened_by_name || '-'],
         ['Clôturée par', queue.completed_by_name || queue.closed_by_name || '-']
-      ].map(([label, value, raw]) => `
+      ]
+        // Les informations absentes (journée pas encore clôturée…) ne sont pas affichées.
+        .filter(([, value]) => value && value !== '-')
+        .map(([label, value, raw]) => `
         <div>
           <dt>${escapeHtml(label)}</dt>
           <dd>${raw ? value : escapeHtml(value)}</dd>

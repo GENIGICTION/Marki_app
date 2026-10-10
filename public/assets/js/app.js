@@ -48,6 +48,7 @@ const dashboardState = {
   pageSize: 12,
   currentPage: 1,
   selectedEntryId: null,
+  expandedEntryId: null,
   scrollToEntryId: null
 };
 
@@ -1306,18 +1307,21 @@ function bindQueueDayControls() {
       await loadDashboardData();
     };
 
+    // Clôturer = la journée est finie : tous les patients doivent être passés.
     if (waitingCount === 0) {
-      try {
-        await completeDay();
-      } catch (error) {
-        showToast(error.message, 'error');
-      }
+      openQueueActionConfirmation({
+        title: 'Clôturer la journée ?',
+        message: 'Tous les patients sont passés. La liste du jour sera fermée et plus personne ne pourra s’inscrire aujourd’hui. Vous pourrez annuler la clôture si vous vous êtes trompé.',
+        confirmLabel: 'Clôturer la journée',
+        confirmType: 'primary',
+        onConfirm: completeDay
+      });
       return;
     }
 
     openQueueActionConfirmation({
       title: 'Clôturer la journée ?',
-      message: `${waitingCount} patient(s) sont encore en attente. Ils seront tous marqués « Annulés — fin de journée » et devront s’inscrire de nouveau lors d’une prochaine journée.`,
+      message: `Pour clôturer, tous les patients doivent être passés. Il reste ${waitingCount} patient(s) en attente. Si vous clôturez maintenant, ils seront annulés (« fin de journée ») et devront se réinscrire un autre jour. Pour les garder, mettez plutôt la liste en pause.`,
       confirmLabel: `Clôturer et annuler ${waitingCount} inscription(s)`,
       secondaryLabel: 'Mettre en pause',
       onSecondary: async () => {
@@ -2431,6 +2435,97 @@ function updateQueueStatusBadge(queue) {
 | La liste conserve toujours son ordre FIFO.
 |--------------------------------------------------------------------------
 */
+function getPatientInitials(displayName) {
+  const parts = String(displayName || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'P';
+  return parts.length > 1
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : parts[0].substring(0, 2).toUpperCase();
+}
+
+function canOpenPatientRecords() {
+  return Boolean(document.querySelector('.sidebar__item[data-page="patients"]'));
+}
+
+/*
+| Détails dépliables d'une ligne (mobile) : seules les informations
+| renseignées sont affichées.
+*/
+function renderPatientRowDetails(entry) {
+  const items = [];
+
+  if (entry.birth_date) {
+    items.push(`
+      <div class="patient-row-details__item">
+        <dt>Date de naissance</dt>
+        <dd>${escapeHtml(formatBirthDate(entry.birth_date))}</dd>
+      </div>
+    `);
+  }
+
+  if (entry.source) {
+    items.push(`
+      <div class="patient-row-details__item">
+        <dt>Inscription</dt>
+        <dd>${escapeHtml(formatSourceLabel(entry.source))}</dd>
+      </div>
+    `);
+  }
+
+  const note = (entry.patient_notes || '').trim();
+  const visits = Array.isArray(entry.recent_visits) ? entry.recent_visits : [];
+  const patientId = Number(entry.patient_id || 0);
+  const canOpenRecord = canOpenPatientRecords() && patientId > 0;
+
+  return `
+    <td class="patient-row-details">
+      ${items.length ? `<dl class="patient-row-details__grid">${items.join('')}</dl>` : ''}
+      ${note ? `
+        <div class="patient-row-details__note">
+          <span>Note cabinet</span>
+          <p>${escapeHtml(note)}</p>
+        </div>
+      ` : ''}
+      ${visits.length ? `
+        <div class="patient-row-details__visits">
+          <span>Dernières visites</span>
+          <ul class="visit-history">${renderPatientHistory(visits)}</ul>
+        </div>
+      ` : ''}
+      ${canOpenRecord ? `
+        <button
+          type="button"
+          class="patient-row-details__record"
+          data-patient-id="${patientId}"
+        >
+          <span>Voir la fiche complète</span>
+          <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-arrow-right"></use></svg>
+        </button>
+      ` : ''}
+    </td>
+  `;
+}
+
+/*
+| Bouton d'appel direct (mobile) : lien tel: vers le numéro du patient.
+*/
+function renderPatientCallCell(entry) {
+  const dialable = String(entry.phone || '').replace(/[^\d+]/g, '');
+  if (!dialable) return '<td class="patient-call-cell"></td>';
+
+  return `
+    <td class="patient-call-cell">
+      <a
+        class="patient-call"
+        href="tel:${escapeHtml(dialable)}"
+        aria-label="Appeler ${escapeHtml(entry.display_name ?? 'le patient')}"
+      >
+        <svg class="mk-icon" aria-hidden="true"><use href="#mk-phone"></use></svg>
+      </a>
+    </td>
+  `;
+}
+
 function renderDashboardTable(entries) {
   const tableBody = document.getElementById('day-list-table-body');
 
@@ -2515,10 +2610,15 @@ function renderDashboardTable(entries) {
     const canReturnToWaiting =
       canProcessPatients && entry.status === 'no_show';
 
+    const isExpanded = String(entry.id) === String(
+      dashboardState.expandedEntryId
+    );
+
     const rowClasses = [
       'patient-row',
       isCurrent ? 'is-current' : '',
-      isSelected ? 'is-selected' : ''
+      isSelected ? 'is-selected' : '',
+      isExpanded ? 'is-expanded' : ''
     ].filter(Boolean).join(' ');
 
     let statusActions = '';
@@ -2570,7 +2670,7 @@ function renderDashboardTable(entries) {
     }
 
     rowsHtml.push(`
-      <tr class="${rowClasses}" data-entry-id="${entry.id}">
+      <tr class="${rowClasses}" data-entry-id="${entry.id}" aria-expanded="${isExpanded ? 'true' : 'false'}">
         <td class="patient-num-cell">${entry.number}</td>
         <td class="patient-name-cell">
           <div class="patient-name-text">${escapeHtml(entry.display_name ?? '')}</div>
@@ -2596,6 +2696,8 @@ function renderDashboardTable(entries) {
             ${statusActions}
           </div>
         </td>
+        ${renderPatientRowDetails(entry)}
+        ${renderPatientCallCell(entry)}
       </tr>
     `);
   });
@@ -2837,9 +2939,10 @@ function renderPatientHistory(visits) {
 
 function openSelectedPatientFullRecord() {
   const button = document.getElementById('view-full-patient-record-btn');
+  openPatientFullRecord(Number(button?.dataset.patientId || 0));
+}
 
-  const patientId = Number(button?.dataset.patientId || 0);
-
+function openPatientFullRecord(patientId) {
   if (patientId <= 0) {
     showToast('Aucune fiche patient liée à cette inscription.','error');
     return;
@@ -2905,16 +3008,7 @@ function updatePatientDetails(entry) {
 
   const avatarEl = document.getElementById('patient-details-avatar');
   if (avatarEl) {
-    const name = (entry.display_name || '').trim();
-    if (name) {
-      const parts = name.split(/\s+/);
-      const initials = parts.length > 1
-        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-        : parts[0].substring(0, 2).toUpperCase();
-      avatarEl.innerHTML = `<span>${escapeHtml(initials)}</span>`;
-    } else {
-      avatarEl.innerHTML = `<span>P</span>`;
-    }
+    avatarEl.innerHTML = `<span>${escapeHtml(getPatientInitials(entry.display_name))}</span>`;
   }
 
   const currentWaiting = getCurrentWaitingEntry();
@@ -2923,6 +3017,8 @@ function updatePatientDetails(entry) {
   nameEl.textContent = entry.display_name || '-';
   phoneEl.textContent = window.MarkiPhone ? window.MarkiPhone.formatMobile(entry.phone || '') : (entry.phone || '-');
   birthDateEl.textContent = formatBirthDate(entry.birth_date);
+  const birthDateRow = birthDateEl.closest('.patient-detail-row');
+  if (birthDateRow) birthDateRow.hidden = !entry.birth_date;
   sourceEl.textContent = formatSourceLabel(entry.source);
   statusEl.innerHTML = renderDetailStatusPill(entry.status, isCurrentPatient);
 
@@ -2939,11 +3035,15 @@ function updatePatientDetails(entry) {
   historyEl.innerHTML = renderPatientHistory(
     entry.recent_visits
   );
+  const historyCard = historyEl.closest('.patient-detail-card--history');
+  if (historyCard) {
+    historyCard.hidden = !(
+      Array.isArray(entry.recent_visits) && entry.recent_visits.length > 0
+    );
+  }
 
   const patientId = Number(entry.patient_id || 0);
-  const canViewPatients = Boolean(
-    document.querySelector('.sidebar__item[data-page="patients"]')
-  );
+  const canViewPatients = canOpenPatientRecords();
 
   fullRecordButton.hidden = !canViewPatients;
   fullRecordButton.disabled = !canViewPatients || patientId <= 0;
@@ -3010,6 +3110,19 @@ async function handleQueueEntryStatusAction(
 | Brancher les événements des lignes
 |--------------------------------------------------------------------------
 */
+function togglePatientRowExpansion(row, entryId) {
+  const willExpand = !row.classList.contains('is-expanded');
+
+  document.querySelectorAll('.patient-row.is-expanded').forEach(openRow => {
+    openRow.classList.remove('is-expanded');
+    openRow.setAttribute('aria-expanded', 'false');
+  });
+
+  row.classList.toggle('is-expanded', willExpand);
+  row.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+  dashboardState.expandedEntryId = willExpand ? Number(entryId) : null;
+}
+
 function bindPatientRowEvents(entries) {
   const rows = document.querySelectorAll('.patient-row');
 
@@ -3019,7 +3132,19 @@ function bindPatientRowEvents(entries) {
     if (!entry) return;
 
     row.addEventListener('click', event => {
-      if (event.target.closest('.btn-action-icon')) return;
+      // L'appel ou une action ne déplient pas la ligne.
+      if (event.target.closest('.btn-action-icon, .patient-call')) return;
+
+      const recordButton = event.target.closest('.patient-row-details__record');
+      if (recordButton) {
+        openPatientFullRecord(Number(recordButton.dataset.patientId || 0));
+        return;
+      }
+
+      // Un clic dans le bloc déplié ne le referme pas.
+      if (event.target.closest('.patient-row-details')) return;
+
+      togglePatientRowExpansion(row, entry.id);
       selectDashboardEntry(entry.id);
     });
 
@@ -3033,18 +3158,38 @@ function bindPatientRowEvents(entries) {
       }
     });
 
+    // Une confirmation évite les appuis accidentels (surtout sur téléphone).
     const absentButton = row.querySelector('.btn-action-icon--absent');
     absentButton?.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
-      handleQueueEntryStatusAction(absentButton, entry, 'no_show');
+      if (absentButton.disabled) return;
+
+      openQueueActionConfirmation({
+        title: 'Marquer ce patient absent ?',
+        message: `${entry.display_name} ne s’est pas présenté. Il sortira de la file d’attente. S’il arrive plus tard, vous pourrez le remettre en attente.`,
+        confirmLabel: 'Marquer absent',
+        onConfirm: async () => {
+          await handleQueueEntryStatusAction(absentButton, entry, 'no_show');
+        }
+      });
     });
 
     const doneButton = row.querySelector('.btn-action-icon--done');
     doneButton?.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
-      handleQueueEntryStatusAction(doneButton, entry, 'done');
+      if (doneButton.disabled) return;
+
+      openQueueActionConfirmation({
+        title: 'Consultation terminée ?',
+        message: `${entry.display_name} sera marqué comme terminé. Attention : cette action ne peut pas être annulée.`,
+        confirmLabel: 'Oui, terminer',
+        confirmType: 'primary',
+        onConfirm: async () => {
+          await handleQueueEntryStatusAction(doneButton, entry, 'done');
+        }
+      });
     });
 
     const cancelButton = row.querySelector('.btn-action-icon--cancel');

@@ -729,6 +729,11 @@ input.is-invalid {
   flex: none;
 }
 
+/* marki-motion.js ajoute déjà un point animé : éviter le doublon. */
+.list-status-badge--open:has(.mk-live-dot)::before {
+  display: none;
+}
+
 .registration-status-badge--open {
   color: #16a34a;
   background: #f0fdf4;
@@ -1949,4 +1954,119 @@ body.v1-profile-modal-open {
 
 .v1-profile-modal__form {
   padding: var(--mk-space-5);
+}
+
+/* ---------------------------------------------------------
+   BULLES D'AIDE « ? » (assets/js/help-tips.js)
+   --------------------------------------------------------- */
+.mk-help {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-left: 0.3rem;
+  padding: 0;
+  place-items: center;
+  border: 1.5px solid var(--mk-color-primary-300);
+  border-radius: 50%;
+  color: var(--mk-color-primary-700);
+  background: var(--mk-color-primary-50);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: var(--mk-font-weight-bold);
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: 0.12em;
+  cursor: pointer;
+  transition: background-color var(--mk-transition-fast), border-color var(--mk-transition-fast);
+}
+
+/* Zone tactile élargie (~44px) sans grossir l'icône */
+.mk-help::after {
+  content: "";
+  position: absolute;
+  inset: -0.7rem;
+}
+
+.mk-help:hover,
+.mk-help[aria-expanded="true"] {
+  border-color: var(--mk-color-primary-600);
+  color: #ffffff;
+  background: var(--mk-color-primary-600);
+}
+
+.mk-help:focus-visible {
+  outline: none;
+  box-shadow: var(--mk-ring);
+}
+
+.mk-help-pop {
+  position: fixed;
+  z-index: calc(var(--mk-z-toast) + 1);
+  width: min(19rem, calc(100vw - 1.5rem));
+  padding: 0.75rem 0.85rem 0.85rem;
+  border: 1px solid var(--mk-border-color);
+  border-radius: 0.9rem;
+  color: var(--mk-text-body);
+  background: var(--mk-surface-card);
+  box-shadow: var(--mk-shadow-lg);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  animation: mkHelpIn var(--mk-duration-fast) var(--mk-ease-out);
+}
+
+.mk-help-pop__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.mk-help-pop__head strong {
+  color: var(--mk-text-main);
+  font-size: 0.92rem;
+}
+
+.mk-help-pop__close {
+  display: grid;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  margin: -0.35rem -0.4rem -0.35rem 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: var(--mk-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.mk-help-pop__close:hover {
+  color: var(--mk-text-main);
+  background: var(--mk-surface-hover);
+}
+
+.mk-help-pop p {
+  margin: 0;
+}
+
+@keyframes mkHelpIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-help-pop { animation: none; }
+}
+
+/* Sous les boutons du QR : action rare, volontairement discrète */
+.qr-admin-regenerate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-top: var(--mk-space-3);
 }

@@ -20,6 +20,19 @@ $canManageTeam = (bool) ($capabilities['team.manage'] ?? false);
 if (session_status() === PHP_SESSION_ACTIVE) {
     session_write_close();
 }
+
+/**
+ * Bouton « ? » qui ouvre une bulle d'aide (voir assets/js/help-tips.js).
+ */
+function settingsHelp(string $title, string $text): string
+{
+    $title = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+
+    return '<button type="button" class="mk-help" aria-expanded="false"'
+        . ' aria-label="Aide : ' . $title . '"'
+        . ' data-help-title="' . $title . '" data-help="' . $text . '">?</button>';
+}
 ?>
 <section class="v1-page v1-settings-page" aria-labelledby="settings-page-title">
   <header class="v1-page__header">
@@ -37,7 +50,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
       <div class="v1-card__header">
         <div>
           <p class="v1-page__eyebrow">Structure</p>
-          <h3 id="clinic-settings-title">Cabinet ou clinique</h3>
+          <h3 id="clinic-settings-title">Cabinet ou clinique <?= settingsHelp('Cabinet ou clinique', 'Ce sont les informations de votre cabinet : nom, téléphone et adresse. Le nom du cabinet est montré aux patients quand ils s’inscrivent avec le QR code.') ?></h3>
         </div>
         <button type="button" class="v1-button v1-button--secondary v1-settings-edit-button" id="clinic-settings-edit-button">
           <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-pencil"></use></svg>
@@ -63,7 +76,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
       <div class="v1-card__header">
         <div>
           <p class="v1-page__eyebrow">Profil professionnel</p>
-          <h3 id="doctor-settings-title">Profil du médecin</h3>
+          <h3 id="doctor-settings-title">Profil du médecin <?= settingsHelp('Profil du médecin', 'Votre nom et votre spécialité. Les patients les voient sur la page où ils s’inscrivent, pour être sûrs de s’inscrire chez le bon médecin.') ?></h3>
         </div>
         <button type="button" class="v1-button v1-button--secondary v1-settings-edit-button" id="doctor-settings-edit-button">
           <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-pencil"></use></svg>
@@ -123,9 +136,8 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     <div class="v1-card__header qr-admin-card__header">
       <div>
         <p class="v1-page__eyebrow">Inscription publique</p>
-        <h3 id="public-registration-title">QR code du médecin</h3>
-        <p>Permettez aux patients de rejoindre la liste d’attente depuis leur téléphone.</p>
-        <p class="qr-admin-scope-note">Ce QR est lié au médecin sélectionné. Dans une clinique, chaque médecin possède son propre QR à afficher sur sa porte, à la réception ou dans ses messages aux patients.</p>
+        <h3 id="public-registration-title">QR code du médecin <?= settingsHelp('À quoi sert le QR code ?', 'C’est un ticket de file d’attente, mais sur le téléphone. Le patient scanne le QR avec l’appareil photo de son téléphone, écrit son nom et son numéro, et il est ajouté tout seul à votre liste du jour. Chaque médecin a son propre QR : collez-le sur votre porte ou à l’accueil.') ?></h3>
+        <p>Les patients le scannent pour s’inscrire.</p>
       </div>
       <div class="v1-collapsible-section__actions">
         <span id="qr-admin-status" class="qr-admin-status">Chargement…</span>
@@ -154,7 +166,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
         <div class="qr-admin-preview__top">
           <div>
             <p class="v1-page__eyebrow">QR permanent</p>
-            <h4 id="qr-preview-title">Affiche à imprimer</h4>
+            <h4 id="qr-preview-title">Affiche à imprimer <?= settingsHelp('Affiche à imprimer', 'Ce QR ne change pas tout seul. Imprimez-le une seule fois et affichez-le : il marchera tous les jours.') ?></h4>
           </div>
           <span id="qr-token-version" class="v1-soft-badge">Version —</span>
         </div>
@@ -168,7 +180,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
         <p class="qr-admin-scan-hint">Scannez pour rejoindre la liste d’attente</p>
 
         <label class="v1-field qr-admin-link-field">
-          <span>Lien public</span>
+          <span>Lien public <?= settingsHelp('Lien public', 'C’est la même chose que le QR code, mais sous forme de lien. Envoyez-le par SMS ou WhatsApp : le patient appuie dessus et peut s’inscrire.') ?></span>
           <input type="text" id="qr-public-url" readonly>
         </label>
 
@@ -179,6 +191,11 @@ if (session_status() === PHP_SESSION_ACTIVE) {
           <button type="button" class="v1-button v1-button--secondary" id="qr-print">Imprimer</button>
         </div>
 
+        <span class="qr-admin-regenerate">
+          <button type="button" class="v1-button v1-button--danger-outline" id="qr-regenerate">Régénérer le QR code</button>
+          <?= settingsHelp('Régénérer le QR', 'Crée un nouveau QR et l’ancien ne marche plus du tout. À faire seulement si quelqu’un utilise votre QR sans votre accord. Attention : il faudra réimprimer l’affiche.') ?>
+        </span>
+
         <p class="qr-admin-network-warning" id="qr-network-warning" hidden>
           Pour tester le QR avec un téléphone sur le réseau local, ouvrez MARKI avec l’adresse IP de cet ordinateur avant de télécharger le QR.
         </p>
@@ -188,15 +205,14 @@ if (session_status() === PHP_SESSION_ACTIVE) {
         <section class="qr-admin-panel">
           <div class="qr-admin-panel__header">
             <div>
-              <h4>Disponibilité</h4>
-              <p>Le QR imprimé reste identique lors d’une désactivation temporaire.</p>
+              <h4>Disponibilité <?= settingsHelp('Activer ou désactiver le QR', 'Activé : les patients peuvent s’inscrire avec le QR. Désactivé : le QR affiche un message et personne ne peut s’inscrire. Votre affiche reste bonne : pas besoin de la réimprimer quand vous le réactivez.') ?></h4>
             </div>
             <button type="button" class="v1-button v1-button--primary" id="qr-toggle-button">Activer</button>
           </div>
 
           <div class="qr-admin-metrics">
-            <div><span>Scans aujourd’hui</span><strong id="qr-scans-today">0</strong></div>
-            <div><span>Inscriptions aujourd’hui</span><strong id="qr-registrations-today">0</strong></div>
+            <div><span>Scans aujourd’hui <?= settingsHelp('Scans aujourd’hui', 'Le nombre de fois où quelqu’un a ouvert la page du QR aujourd’hui, même sans finir son inscription.') ?></span><strong id="qr-scans-today">0</strong></div>
+            <div><span>Inscriptions aujourd’hui <?= settingsHelp('Inscriptions aujourd’hui', 'Le nombre de patients qui ont vraiment fini leur inscription avec le QR aujourd’hui.') ?></span><strong id="qr-registrations-today">0</strong></div>
             <div><span>Dernier scan</span><strong id="qr-last-scan">—</strong></div>
           </div>
         </section>
@@ -204,25 +220,24 @@ if (session_status() === PHP_SESSION_ACTIVE) {
         <form id="qr-settings-form" class="qr-admin-panel" novalidate>
           <div class="qr-admin-panel__header">
             <div>
-              <h4>Règles d’inscription</h4>
-              <p>Le téléphone et le consentement restent obligatoires pour la V1.</p>
+              <h4>Règles d’inscription <?= settingsHelp('Règles d’inscription', 'Ici, vous choisissez ce que le patient doit remplir quand il s’inscrit avec le QR. Son numéro de téléphone et son accord sont toujours demandés.') ?></h4>
             </div>
           </div>
 
           <div class="v1-form__grid">
             <label class="qr-admin-check v1-field--wide">
               <input type="checkbox" id="qr-birth-date-required" name="birth_date_required">
-              <span>Rendre la date de naissance obligatoire</span>
+              <span>Rendre la date de naissance obligatoire <?= settingsHelp('Date de naissance obligatoire', 'Si vous cochez, le patient doit écrire sa date de naissance pour s’inscrire. C’est utile pour ne pas confondre deux patients qui ont le même nom.') ?></span>
             </label>
 
             <label class="v1-field">
-              <span>Limite d’inscriptions QR par jour</span>
+              <span>Limite d’inscriptions QR par jour <?= settingsHelp('Limite par jour', 'Le nombre maximum de patients qui peuvent s’inscrire avec le QR en une journée. Quand ce nombre est atteint, le QR n’accepte plus personne jusqu’au lendemain. Laissez vide pour ne pas mettre de limite.') ?></span>
               <input type="number" id="qr-max-registrations" name="max_public_registrations_per_day" min="1" max="1000" placeholder="Sans limite">
               <small class="v1-field-error" data-qr-error="max_public_registrations_per_day"></small>
             </label>
 
             <label class="v1-field">
-              <span>Durée du lien de suivi</span>
+              <span>Durée du lien de suivi <?= settingsHelp('Durée du lien de suivi', 'Après son inscription, le patient reçoit une page qui lui montre sa place dans la file. Ce réglage dit pendant combien de temps cette page reste ouverte.') ?></span>
               <select id="qr-session-duration" name="public_session_duration_minutes">
                 <option value="120">2 heures</option>
                 <option value="360">6 heures</option>
@@ -236,7 +251,7 @@ if (session_status() === PHP_SESSION_ACTIVE) {
           </div>
 
           <details class="qr-admin-messages">
-            <summary>Personnaliser les messages publics</summary>
+            <summary>Personnaliser les messages publics <?= settingsHelp('Messages publics', 'Ce sont les phrases que le patient lit après avoir scanné le QR. Par exemple : quand les inscriptions sont fermées, ou quand son inscription est réussie. Vous pouvez les écrire avec vos mots.') ?></summary>
             <div class="qr-admin-messages__grid">
               <label class="v1-field">
                 <span>Liste du jour non ouverte</span>
@@ -275,7 +290,6 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 
           <div class="qr-admin-form-actions">
             <button type="submit" class="v1-button v1-button--primary" id="qr-save-settings">Enregistrer les réglages</button>
-            <button type="button" class="v1-button v1-button--danger-outline" id="qr-regenerate">Régénérer pour sécurité</button>
           </div>
         </form>
       </div>
@@ -308,8 +322,8 @@ if (session_status() === PHP_SESSION_ACTIVE) {
     <div class="v1-card__header team-card__header">
       <div>
         <p class="v1-page__eyebrow">Équipe et accès</p>
-        <h3 id="team-settings-title">Comptes de la structure</h3>
-        <p>Chaque personne utilise son propre compte. Un compte désactivé conserve tout son historique.</p>
+        <h3 id="team-settings-title">Comptes de la structure <?= settingsHelp('Comptes de l’équipe', 'Chaque personne qui travaille avec vous (secrétaire, autre médecin) a son propre compte avec son mot de passe. Vous choisissez ce que chacun a le droit de faire. Si quelqu’un part, désactivez son compte : tout ce qu’il a fait reste enregistré.') ?></h3>
+        <p>Un compte par personne.</p>
       </div>
       <div class="v1-collapsible-section__actions">
         <button

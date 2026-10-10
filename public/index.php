@@ -41,18 +41,18 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="assets/css/styles.css?v=20260830-ui4">
-    <link rel="stylesheet" href="assets/css/v1-tabs.css?v=20260830-ui4">
-    <link rel="stylesheet" href="assets/css/session-ui.css?v=20260830-ui4">
-    <link rel="stylesheet" href="assets/css/password-toggle.css?v=20260830-ui4">
-    <link rel="stylesheet" href="assets/css/public-registration-admin.css?v=20260830-ui4">
-    <link rel="stylesheet" href="assets/css/desktop-density.css?v=20260830-ui4">
+    <link rel="stylesheet" href="assets/css/styles.css?v=20261010-anim2">
+    <link rel="stylesheet" href="assets/css/v1-tabs.css?v=20261010-anim2">
+    <link rel="stylesheet" href="assets/css/session-ui.css?v=20261010-anim2">
+    <link rel="stylesheet" href="assets/css/password-toggle.css?v=20261010-anim2">
+    <link rel="stylesheet" href="assets/css/public-registration-admin.css?v=20261010-anim2">
+    <link rel="stylesheet" href="assets/css/desktop-density.css?v=20261010-anim2">
 
-    <script src="assets/js/auth-client.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/phone-input.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/password-toggle.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/algeria-locations.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/app.js?v=20260830-ui4" defer></script>
+    <script src="assets/js/auth-client.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/phone-input.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/password-toggle.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/algeria-locations.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/app.js?v=20261010-anim2" defer></script>
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
@@ -60,12 +60,13 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
         referrerpolicy="no-referrer"
         defer
     ></script>
-    <script src="assets/js/v1-tabs.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/public-registration-admin.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/team.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/header.js?v=20260830-ui4" defer></script>
-    <script src="assets/js/marki-motion.js?v=20260830-ui4" defer></script>
-    <link rel="stylesheet" href="assets/design-system/marki-theme.css?v=20260830-ui4">
+    <script src="assets/js/v1-tabs.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/public-registration-admin.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/team.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/header.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/marki-motion.js?v=20261010-anim2" defer></script>
+    <script src="assets/js/help-tips.js?v=20261010-anim2" defer></script>
+    <link rel="stylesheet" href="assets/design-system/marki-theme.css?v=20261010-anim2">
 </head>
 
 <body>
@@ -193,7 +194,7 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
                         <span class="mobile-bottom-nav__icon">
                             <svg class="mk-icon" aria-hidden="true"><use href="#mk-queue"></use></svg>
                         </span>
-                        <span class="mobile-bottom-nav__label">File du jour</span>
+                        <span class="mobile-bottom-nav__label">Liste du jour</span>
                     </li>
                 <?php endif; ?>
 
