@@ -19,12 +19,14 @@ final class PatientDirectoryRepository
         int $doctorId,
         string $search,
         int $page,
-        int $perPage
+        int $perPage,
+        string $sort = 'recent'
     ): array {
         $page = max(1, $page);
-        $perPage = in_array($perPage, [12, 24, 48], true)
+        // Nombre de patients par page proposé dans « Mes Patients ».
+        $perPage = in_array($perPage, [15, 30, 50, 100], true)
             ? $perPage
-            : 12;
+            : 15;
         $offset = ($page - 1) * $perPage;
         $search = trim($search);
 
@@ -90,6 +92,15 @@ final class PatientDirectoryRepository
 
         $whereSql = implode("\n AND ", $where);
 
+        /*
+        |----------------------------------------------------------------------
+        | Tri : liste fermée de valeurs, jamais de SQL venu du client.
+        |----------------------------------------------------------------------
+        */
+        $orderSql = $sort === 'name'
+            ? 'p.full_name ASC, p.id DESC'
+            : 'COALESCE(last_visit_at, p.updated_at, p.created_at) DESC, p.full_name ASC, p.id DESC';
+
         $countSql = "
             SELECT COUNT(*) AS total
             FROM patients p
@@ -138,10 +149,7 @@ final class PatientDirectoryRepository
                 ) AS last_queue_status
             FROM patients p
             WHERE {$whereSql}
-            ORDER BY
-                COALESCE(last_visit_at, p.updated_at, p.created_at) DESC,
-                p.full_name ASC,
-                p.id DESC
+            ORDER BY {$orderSql}
             LIMIT :limit_rows OFFSET :offset_rows
         ";
 

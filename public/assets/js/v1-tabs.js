@@ -18,11 +18,24 @@
     settingsUpdate: 'api/settings_update.php'
   };
 
+  const PATIENTS_SORT_KEY = 'marki.patientsSort';
+
+  function readStoredPatientsSort() {
+    try {
+      return localStorage.getItem(PATIENTS_SORT_KEY) === 'name' ? 'name' : 'recent';
+    } catch (error) {
+      return 'recent';
+    }
+  }
+
   const patientsState = {
     query: '',
     page: 1,
-    perPage: 12,
+    perPage: 15,
+    sort: readStoredPatientsSort(),
     selectedId: null,
+    // Mobile : patient dont la fiche est dépliée dans la liste.
+    expandedId: null,
     requestId: 0
   };
 
@@ -33,6 +46,7 @@
     page: 1,
     perPage: 12,
     selectedId: null,
+    expandedId: null,
     requestId: 0
   };
 
@@ -350,8 +364,12 @@
     const addButton = document.getElementById('patient-add-to-today-button');
     const editButton = document.getElementById('patient-profile-edit-button');
     const editModal = document.getElementById('patient-profile-edit-modal');
+    const sortSelect = document.getElementById('patients-sort');
 
     if (!searchInput || !pageSize) return;
+
+    patientsState.expandedId = null;
+    rememberPanelHome(document.querySelector('.v1-patient-profile'));
 
     const requestedPatientId = Number(
       sessionStorage.getItem('marki.openPatientId') || 0
@@ -359,11 +377,24 @@
 
     if (requestedPatientId > 0) {
       patientsState.selectedId = requestedPatientId;
+      patientsState.expandedId = requestedPatientId;
       sessionStorage.removeItem('marki.openPatientId');
     }
 
     searchInput.value = patientsState.query;
     pageSize.value = String(patientsState.perPage);
+    if (sortSelect) sortSelect.value = patientsState.sort;
+
+    sortSelect?.addEventListener('change', () => {
+      patientsState.sort = sortSelect.value === 'name' ? 'name' : 'recent';
+      patientsState.page = 1;
+      try {
+        localStorage.setItem(PATIENTS_SORT_KEY, patientsState.sort);
+      } catch (error) {
+        // Préférence non mémorisée : le tri fonctionne quand même.
+      }
+      loadPatients();
+    });
 
     searchInput.addEventListener('input', () => {
       clearTimeout(patientSearchTimer);
@@ -375,7 +406,7 @@
     });
 
     pageSize.addEventListener('change', () => {
-      patientsState.perPage = Number(pageSize.value) || 12;
+      patientsState.perPage = Number(pageSize.value) || 15;
       patientsState.page = 1;
       loadPatients();
     });
@@ -410,6 +441,7 @@
       }
 
       patientsState.selectedId = Number(patient.id);
+      patientsState.expandedId = Number(patient.id);
       patientsState.query = patient.full_name || '';
       patientsState.page = 1;
       searchInput.value = patientsState.query;
@@ -439,12 +471,14 @@
 
     const requestId = ++patientsState.requestId;
     setMessage(message);
+    restoreInlinePanel(body, document.querySelector('.v1-patient-profile'));
     body.innerHTML = '<tr><td colspan="6" class="v1-empty-cell">Chargement des patients…</td></tr>';
 
     const params = new URLSearchParams({
       q: patientsState.query,
       page: String(patientsState.page),
-      per_page: String(patientsState.perPage)
+      per_page: String(patientsState.perPage),
+      sort: patientsState.sort
     });
 
     try {
@@ -503,8 +537,27 @@
 
       body.querySelectorAll('tr[data-patient-id]').forEach(row => {
         const open = async () => {
-          await selectPatient(Number(row.dataset.patientId));
-          revealOnSmallScreen(document.querySelector('.v1-patient-profile'));
+          const patientId = Number(row.dataset.patientId);
+
+          // Toutes tailles d'écran : la fiche se déplie sous le patient.
+          {
+            const panel = document.querySelector('.v1-patient-profile');
+            if (patientsState.expandedId === patientId) {
+              patientsState.expandedId = null;
+              restoreInlinePanel(body, panel, { animate: true });
+              return;
+            }
+            // On charge d'abord la fiche, puis elle se déplie à sa vraie hauteur.
+            patientsState.expandedId = patientId;
+            row.classList.add('is-loading');
+            restoreInlinePanel(body, panel, { animate: true });
+            await selectPatient(patientId);
+            row.classList.remove('is-loading');
+            if (patientsState.expandedId !== patientId || !row.isConnected) return;
+            mountInlinePanel(row, panel, 6, { animate: true });
+            return;
+          }
+
         };
         row.addEventListener('click', open);
         row.addEventListener('keydown', event => {
@@ -515,15 +568,17 @@
         });
       });
 
-      if (
-        patientsState.selectedId
-        && items.some(item => Number(item.id) === Number(patientsState.selectedId))
-      ) {
-        await loadPatientProfile(patientsState.selectedId);
-      } else if (!patientsState.selectedId) {
-        await selectPatient(items[0].id);
-      } else {
-        await loadPatientProfile(patientsState.selectedId);
+      {
+        // Rien n'est déplié d'office, sauf la fiche demandée.
+        const expandedRow = patientsState.expandedId
+          ? body.querySelector(`tr[data-patient-id="${patientsState.expandedId}"]`)
+          : null;
+        if (expandedRow) {
+          mountInlinePanel(expandedRow, document.querySelector('.v1-patient-profile'), 6);
+          await selectPatient(patientsState.expandedId);
+        } else {
+          patientsState.expandedId = null;
+        }
       }
     } catch (error) {
       console.error('Mes Patients :', error);
@@ -615,6 +670,132 @@
     const detail = element.closest('.v1-profile-detail');
     if (detail) detail.hidden = text === '';
   }
+
+  /* -------------------------------------------------------
+     Fiches dépliables (téléphone)
+     Le panneau de détail existant est déplacé dans une ligne
+     insérée sous l'élément touché : ses identifiants et ses
+     boutons restent les mêmes, rien n'est dupliqué.
+     ------------------------------------------------------- */
+  const SMALL_SCREEN_QUERY = window.matchMedia('(max-width: 768px)');
+  const panelHomes = new WeakMap();
+
+  function isSmallScreen() {
+    return SMALL_SCREEN_QUERY.matches;
+  }
+
+  function rememberPanelHome(panel) {
+    if (panel && panel.parentElement) panelHomes.set(panel, panel.parentElement);
+  }
+
+  function restoreInlinePanel(body, panel, { animate = false } = {}) {
+    if (!body) return;
+
+    body.querySelectorAll(':scope > .is-expanded').forEach(row => {
+      row.classList.remove('is-expanded');
+      row.setAttribute('aria-expanded', 'false');
+    });
+
+    const holder = body.querySelector(':scope > .v1-inline-panel-row');
+    if (!holder) return;
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      const home = panel ? panelHomes.get(panel) : null;
+      if (panel && home && holder.contains(panel)) home.appendChild(panel);
+      holder.remove();
+    };
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cell = holder.querySelector('.v1-inline-panel-cell');
+    const clip = holder.querySelector('.v1-inline-panel-clip');
+    if (!animate || reduceMotion || !clip?.animate) {
+      finish();
+      return;
+    }
+
+    // Repli : la hauteur descend en douceur jusqu'à zéro, puis on retire.
+    // (Une cellule de tableau ne rétrécit pas : on anime l'enveloppe.)
+    holder.classList.add('is-leaving');
+    const timing = { duration: 260, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' };
+    const height = clip.getBoundingClientRect().height;
+    const animation = clip.animate([
+      { height: `${height}px`, opacity: 1, transform: 'none' },
+      { height: '0px', opacity: 0, transform: 'translateY(-6px)' }
+    ], timing);
+    const cellStyle = getComputedStyle(cell);
+    cell.animate([
+      { paddingTop: cellStyle.paddingTop, paddingBottom: cellStyle.paddingBottom },
+      { paddingTop: '0px', paddingBottom: '0px' }
+    ], timing);
+    animation.finished.then(finish, finish);
+    window.setTimeout(finish, 600);
+  }
+
+  // Dépliage : la fiche s'ouvre de zéro à sa vraie hauteur.
+  function animateInlineOpen(holder) {
+    const cell = holder?.querySelector('.v1-inline-panel-cell');
+    const clip = holder?.querySelector('.v1-inline-panel-clip');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!clip?.animate || reduceMotion) return;
+
+    const timing = { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
+    const height = clip.getBoundingClientRect().height;
+    clip.animate([
+      { height: '0px', opacity: 0, transform: 'translateY(-6px)' },
+      { height: `${height}px`, opacity: 1, transform: 'none' }
+    ], timing);
+    const cellStyle = getComputedStyle(cell);
+    cell.animate([
+      { paddingTop: '0px', paddingBottom: '0px' },
+      { paddingTop: cellStyle.paddingTop, paddingBottom: cellStyle.paddingBottom }
+    ], timing);
+  }
+
+  function mountInlinePanel(row, panel, colspan, { animate = false } = {}) {
+    const body = row?.parentElement;
+    if (!body || !panel) return;
+
+    restoreInlinePanel(body, panel);
+
+    // Ligne de tableau ou carte : le conteneur suit la nature de la liste.
+    const isTableRow = row.tagName === 'TR';
+    const holder = document.createElement(isTableRow ? 'tr' : 'div');
+    holder.className = 'v1-inline-panel-row';
+    const cell = document.createElement(isTableRow ? 'td' : 'div');
+    if (isTableRow) cell.colSpan = colspan;
+    cell.className = 'v1-inline-panel-cell';
+    // Enveloppe animable (une cellule de tableau ne peut pas rétrécir).
+    const clip = document.createElement('div');
+    clip.className = 'v1-inline-panel-clip';
+    clip.appendChild(panel);
+    cell.appendChild(clip);
+    holder.appendChild(cell);
+    row.after(holder);
+
+    row.classList.add('is-expanded');
+    row.setAttribute('aria-expanded', 'true');
+
+    if (animate) animateInlineOpen(holder);
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    requestAnimationFrame(() => {
+      row.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    });
+  }
+
+  // Retour à l'écran large : les panneaux reprennent leur place à droite.
+  SMALL_SCREEN_QUERY.addEventListener?.('change', event => {
+    if (event.matches) return;
+    // La fiche patient reste dépliée dans la liste à toutes les tailles.
+    restoreInlinePanel(
+      document.getElementById('queues-history-table-body'),
+      document.querySelector('.v1-queue-detail')
+    );
+    queuesState.expandedId = null;
+  });
 
   // Mobile / tablette : la fiche est sous la liste, on l'amène à l'écran.
   function revealOnSmallScreen(element) {
@@ -815,6 +996,9 @@
 
     if (!form || !pageSize) return;
 
+    queuesState.expandedId = null;
+    rememberPanelHome(document.querySelector('.v1-queue-detail'));
+
     pageSize.value = String(queuesState.perPage);
     setInputValue('queues-date-from', queuesState.dateFrom);
     setInputValue('queues-date-to', queuesState.dateTo);
@@ -850,6 +1034,159 @@
     loadQueuesHistory();
   }
 
+  /* -------------------------------------------------------
+     Cartes « journée » : les compteurs deviennent un bilan
+     lisible d'un coup d'œil (barre de répartition + chiffres).
+     ------------------------------------------------------- */
+  const WEEKDAY_FORMAT = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', timeZone: 'UTC' });
+  const SHORT_MONTH_FORMAT = new Intl.DateTimeFormat('fr-FR', { month: 'short', timeZone: 'UTC' });
+
+  function queueCounts(queue) {
+    return {
+      total: Number(queue.total_entries || 0),
+      done: Number(queue.done_count || 0),
+      absent: Number(queue.no_show_count || 0),
+      canceled: Number(queue.canceled_count || 0),
+      waiting: Number(queue.waiting_count || 0) + Number(queue.called_count || 0)
+    };
+  }
+
+  function percentOf(part, total) {
+    return total > 0 ? Math.round((part / total) * 100) : 0;
+  }
+
+  function renderDayBar(counts) {
+    if (counts.total <= 0) {
+      return '<div class="v1-day-bar is-empty" aria-hidden="true"></div>';
+    }
+
+    const segments = [
+      ['done', counts.done],
+      ['absent', counts.absent],
+      ['canceled', counts.canceled],
+      ['waiting', counts.waiting]
+    ].filter(([, value]) => value > 0);
+
+    return `
+      <div class="v1-day-bar" aria-hidden="true">
+        ${segments.map(([key, value]) => `
+          <span class="v1-day-bar__part v1-day-bar__part--${key}" style="flex-grow:${value}"></span>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderDayStats(counts) {
+    const tiles = [
+      ['total', 'Total', counts.total, ''],
+      ['done', 'Terminés', counts.done, counts.done ? `${percentOf(counts.done, counts.total)} %` : ''],
+      ['absent', 'Absents', counts.absent, counts.absent ? `${percentOf(counts.absent, counts.total)} %` : ''],
+      ['canceled', 'Annulés', counts.canceled, counts.canceled ? `${percentOf(counts.canceled, counts.total)} %` : '']
+    ];
+
+    if (counts.waiting > 0) {
+      tiles.push(['waiting', 'En attente', counts.waiting, '']);
+    }
+
+    return `
+      ${renderDayBar(counts)}
+      <dl class="v1-day-stats__grid">
+        ${tiles.map(([key, label, value, share]) => `
+          <div class="v1-day-stat v1-day-stat--${key}">
+            <dt>${label}</dt>
+            <dd>
+              <strong>${value}</strong>
+              ${share ? `<small>${share}</small>` : ''}
+            </dd>
+          </div>
+        `).join('')}
+      </dl>
+    `;
+  }
+
+  // Compteurs compacts d'une journée : une seule ligne, couleur = statut.
+  function renderDayChips(counts) {
+    const chips = [
+      ['total', counts.total, 'patients', 'users'],
+      ['done', counts.done, 'terminés', 'check'],
+      ['absent', counts.absent, 'absents', 'user-x'],
+      ['canceled', counts.canceled, 'annulés', 'slash-circle']
+    ];
+    if (counts.waiting > 0) chips.push(['waiting', counts.waiting, 'en attente', 'clock']);
+
+    return `
+      <span class="v1-day-chips">
+        ${chips.map(([key, value, label, icon]) => `
+          <span class="v1-day-chip v1-day-chip--${key}${value === 0 && key !== 'total' ? ' is-zero' : ''}" title="${value} ${label}">
+            <svg class="mk-icon" aria-hidden="true"><use href="#mk-${icon}"></use></svg>
+            <strong>${value}</strong><span class="v1-day-chip__label"> ${label}</span>
+          </span>
+        `).join('')}
+      </span>
+    `;
+  }
+
+  function renderDayCard(queue) {
+    const counts = queueCounts(queue);
+    const match = String(queue.queue_date || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const date = match ? new Date(Date.UTC(+match[1], +match[2] - 1, +match[3])) : null;
+    const weekday = date ? WEEKDAY_FORMAT.format(date) : '';
+    const isSelected = Number(queue.id) === Number(queuesState.selectedId);
+    const relative = formatRelativeDate(queue.queue_date);
+
+    return `
+      <article
+        class="v1-day-card${isSelected ? ' is-selected' : ''}"
+        role="listitem"
+        data-selectable="true"
+        data-queue-id="${queue.id}"
+        tabindex="0"
+        aria-expanded="false"
+        aria-label="Journée du ${escapeHtml(formatDate(queue.queue_date))}"
+      >
+        <span class="v1-day-card__date" aria-hidden="true">
+          <strong>${date ? date.getUTCDate() : '–'}</strong>
+          <span>${date ? escapeHtml(SHORT_MONTH_FORMAT.format(date).replace('.', '')) : ''}</span>
+        </span>
+        <span class="v1-day-card__title">
+          <strong>${escapeHtml(weekday)}</strong>
+          <span>${escapeHtml(relative || formatDate(queue.queue_date))}</span>
+        </span>
+        ${renderDayChips(counts)}
+        ${renderStatus(queue.day_status)}
+        <svg class="mk-icon mk-icon--sm v1-day-card__chevron" aria-hidden="true"><use href="#mk-chevron-right"></use></svg>
+        ${renderDayBar(counts)}
+      </article>
+    `;
+  }
+
+  function renderPeriodStats(items) {
+    const sum = items.map(queueCounts).reduce((acc, counts) => {
+      Object.keys(acc).forEach(key => { acc[key] += counts[key]; });
+      return acc;
+    }, { total: 0, done: 0, absent: 0, canceled: 0, waiting: 0 });
+
+    const average = items.length ? Math.round(sum.total / items.length) : 0;
+
+    return `
+      <div class="v1-period-stats__head">
+        <strong>Bilan des ${items.length} journée${items.length > 1 ? 's' : ''} affichée${items.length > 1 ? 's' : ''}</strong>
+        <span>${average} patient${average > 1 ? 's' : ''} par jour en moyenne</span>
+      </div>
+      <div class="v1-day-stats">${renderDayStats(sum)}</div>
+    `;
+  }
+
+  function renderDayCardSkeletons(count) {
+    return Array.from({ length: count }, () => `
+      <div class="v1-day-card is-skeleton" aria-hidden="true">
+        <span class="mk-skeleton mk-skeleton--title"></span>
+        <span class="mk-skeleton mk-skeleton--text"></span>
+        <span class="mk-skeleton mk-skeleton--text"></span>
+      </div>
+    `).join('');
+  }
+
   async function loadQueuesHistory() {
     const body = document.getElementById('queues-history-table-body');
     const message = document.getElementById('queues-history-message');
@@ -860,8 +1197,10 @@
     if (!body) return;
 
     const requestId = ++queuesState.requestId;
+    const periodStats = document.getElementById('queues-period-stats');
     setMessage(message);
-    body.innerHTML = '<tr><td colspan="8" class="v1-empty-cell">Chargement des listes…</td></tr>';
+    restoreInlinePanel(body, document.querySelector('.v1-queue-detail'));
+    body.innerHTML = renderDayCardSkeletons(3);
 
     const params = new URLSearchParams({
       day_status: queuesState.dayStatus,
@@ -898,34 +1237,42 @@
       });
 
       if (!items.length) {
-        body.innerHTML = '<tr><td colspan="8" class="v1-empty-cell">Aucune liste dans cette période.</td></tr>';
+        body.innerHTML = '<p class="v1-empty-cell">Aucune liste dans cette période.</p>';
+        if (periodStats) periodStats.hidden = true;
         clearQueueDetails();
         return;
       }
 
-      body.innerHTML = items.map(queue => `
-        <tr
-          data-selectable="true"
-          data-queue-id="${queue.id}"
-          class="${Number(queue.id) === Number(queuesState.selectedId) ? 'is-selected' : ''}"
-          tabindex="0"
-        >
-          <td><strong>${formatDate(queue.queue_date)}</strong></td>
-          <td>${renderStatus(queue.day_status)}</td>
-          <td>${queue.total_entries}</td>
-          <td>${Number(queue.waiting_count || 0) + Number(queue.called_count || 0)}</td>
-          <td>${queue.done_count}</td>
-          <td>${queue.no_show_count}</td>
-          <td>${queue.canceled_count}</td>
-          <td class="v1-table__action-heading">
-            <button type="button" class="v1-icon-button" data-open-queue="${queue.id}" title="Voir la journée" aria-label="Voir la journée du ${formatDate(queue.queue_date)}">›</button>
-          </td>
-        </tr>
-      `).join('');
+      if (periodStats) {
+        periodStats.innerHTML = renderPeriodStats(items);
+        periodStats.hidden = false;
+      }
 
-      body.querySelectorAll('tr[data-queue-id]').forEach(row => {
+      body.innerHTML = items.map(queue => renderDayCard(queue)).join('');
+
+      body.querySelectorAll('[data-queue-id]').forEach(row => {
         const open = async () => {
-          await selectQueue(Number(row.dataset.queueId));
+          const queueId = Number(row.dataset.queueId);
+
+          // Téléphone : le détail se déplie sous la journée touchée.
+          if (isSmallScreen()) {
+            const panel = document.querySelector('.v1-queue-detail');
+            if (queuesState.expandedId === queueId) {
+              queuesState.expandedId = null;
+              restoreInlinePanel(body, panel, { animate: true });
+              return;
+            }
+            queuesState.expandedId = queueId;
+            row.classList.add('is-loading');
+            restoreInlinePanel(body, panel, { animate: true });
+            await selectQueue(queueId);
+            row.classList.remove('is-loading');
+            if (queuesState.expandedId !== queueId || !row.isConnected) return;
+            mountInlinePanel(row, panel, 1, { animate: true });
+            return;
+          }
+
+          await selectQueue(queueId);
           revealOnSmallScreen(document.querySelector('.v1-queue-detail'));
         };
         row.addEventListener('click', open);
@@ -937,7 +1284,17 @@
         });
       });
 
-      if (
+      if (isSmallScreen()) {
+        const expandedRow = queuesState.expandedId
+          ? body.querySelector(`[data-queue-id="${queuesState.expandedId}"]`)
+          : null;
+        if (expandedRow) {
+          mountInlinePanel(expandedRow, document.querySelector('.v1-queue-detail'), 1);
+          await selectQueue(queuesState.expandedId);
+        } else {
+          queuesState.expandedId = null;
+        }
+      } else if (
         queuesState.selectedId
         && items.some(item => Number(item.id) === Number(queuesState.selectedId))
       ) {
@@ -947,7 +1304,8 @@
       }
     } catch (error) {
       console.error('Toutes les listes :', error);
-      body.innerHTML = '<tr><td colspan="8" class="v1-empty-cell">Impossible de charger les listes.</td></tr>';
+      if (periodStats) periodStats.hidden = true;
+      body.innerHTML = '<p class="v1-empty-cell">Impossible de charger les listes.</p>';
       setMessage(message, error.message, 'error');
     }
   }
@@ -955,7 +1313,7 @@
   async function selectQueue(queueId) {
     queuesState.selectedId = Number(queueId);
 
-    document.querySelectorAll('#queues-history-table-body tr[data-queue-id]').forEach(row => {
+    document.querySelectorAll('#queues-history-table-body [data-queue-id]').forEach(row => {
       row.classList.toggle(
         'is-selected',
         Number(row.dataset.queueId) === queuesState.selectedId
@@ -991,6 +1349,18 @@
       queuesState.selectedId = Number(queue.id);
       if (title) title.textContent = `Liste du ${formatDate(queue.queue_date)}`;
       if (count) count.textContent = String(entries.length);
+
+      const detailStats = document.getElementById('queue-detail-stats');
+      if (detailStats) {
+        const byStatus = status => entries.filter(entry => entry.status === status).length;
+        detailStats.innerHTML = renderDayStats({
+          total: entries.length,
+          done: byStatus('done'),
+          absent: byStatus('no_show'),
+          canceled: byStatus('canceled'),
+          waiting: byStatus('waiting') + byStatus('called') + byStatus('in_progress')
+        });
+      }
 
       summary.innerHTML = [
         ['État de la journée', renderStatus(queue.day_status), true],

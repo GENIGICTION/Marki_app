@@ -28,10 +28,11 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="../assets/design-system/marki-theme.css?v=20260830-ui1">
+    <link rel="stylesheet" href="../assets/design-system/marki-theme.css?v=20261017-dates1">
     <link rel="stylesheet" href="assets/registration.css?v=20260830-ui1">
     <script src="../assets/js/phone-input.js?v=20260830-ui1" defer></script>
     <script src="assets/registration.js?v=20260830-ui1" defer></script>
+    <script src="../assets/js/marki-datepicker.js?v=20261017-dates1" defer></script>
 </head>
 <body>
     <?php require __DIR__ . '/../../app/partials/icons_sprite.php'; ?>

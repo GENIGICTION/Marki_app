@@ -48,7 +48,8 @@ function settingsHelp(string $title, string $text): string
   <div class="v1-settings-grid">
     <section class="v1-card" id="clinic-settings-card" aria-labelledby="clinic-settings-title">
       <div class="v1-card__header">
-        <div>
+        <div class="v1-section-title">
+          <span class="v1-section-icon v1-section-icon--clinic" aria-hidden="true"><svg class="mk-icon"><use href="#mk-building"></use></svg></span>
           <p class="v1-page__eyebrow">Structure</p>
           <h3 id="clinic-settings-title">Cabinet ou clinique <?= settingsHelp('Cabinet ou clinique', 'Ce sont les informations de votre cabinet : nom, téléphone et adresse. Le nom du cabinet est montré aux patients quand ils s’inscrivent avec le QR code.') ?></h3>
         </div>
@@ -74,7 +75,8 @@ function settingsHelp(string $title, string $text): string
 
     <section class="v1-card" id="doctor-settings-card" aria-labelledby="doctor-settings-title">
       <div class="v1-card__header">
-        <div>
+        <div class="v1-section-title">
+          <span class="v1-section-icon v1-section-icon--doctor" aria-hidden="true"><svg class="mk-icon"><use href="#mk-stethoscope"></use></svg></span>
           <p class="v1-page__eyebrow">Profil professionnel</p>
           <h3 id="doctor-settings-title">Profil du médecin <?= settingsHelp('Profil du médecin', 'Votre nom et votre spécialité. Les patients les voient sur la page où ils s’inscrivent, pour être sûrs de s’inscrire chez le bon médecin.') ?></h3>
         </div>
@@ -134,7 +136,8 @@ function settingsHelp(string $title, string $text): string
   <?php if ($canManageQr): ?>
   <section id="public-registration-section" class="v1-card qr-admin-card v1-collapsible-section is-collapsed" aria-labelledby="public-registration-title">
     <div class="v1-card__header qr-admin-card__header">
-      <div>
+      <div class="v1-section-title">
+        <span class="v1-section-icon v1-section-icon--qr" aria-hidden="true"><svg class="mk-icon"><use href="#mk-qr"></use></svg></span>
         <p class="v1-page__eyebrow">Inscription publique</p>
         <h3 id="public-registration-title">QR code du médecin <?= settingsHelp('À quoi sert le QR code ?', 'C’est un ticket de file d’attente, mais sur le téléphone. Le patient scanne le QR avec l’appareil photo de son téléphone, écrit son nom et son numéro, et il est ajouté tout seul à votre liste du jour. Chaque médecin a son propre QR : collez-le sur votre porte ou à l’accueil.') ?></h3>
         <p>Les patients le scannent pour s’inscrire.</p>
@@ -320,7 +323,8 @@ function settingsHelp(string $title, string $text): string
   <?php if ($canManageTeam): ?>
   <section id="team-settings-section" class="v1-card team-card v1-collapsible-section is-collapsed" aria-labelledby="team-settings-title">
     <div class="v1-card__header team-card__header">
-      <div>
+      <div class="v1-section-title">
+        <span class="v1-section-icon v1-section-icon--team" aria-hidden="true"><svg class="mk-icon"><use href="#mk-users"></use></svg></span>
         <p class="v1-page__eyebrow">Équipe et accès</p>
         <h3 id="team-settings-title">Comptes de la structure <?= settingsHelp('Comptes de l’équipe', 'Chaque personne qui travaille avec vous (secrétaire, autre médecin) a son propre compte avec son mot de passe. Vous choisissez ce que chacun a le droit de faire. Si quelqu’un part, désactivez son compte : tout ce qu’il a fait reste enregistré.') ?></h3>
         <p>Un compte par personne.</p>

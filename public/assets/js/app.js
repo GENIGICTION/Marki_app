@@ -49,8 +49,13 @@ const dashboardState = {
   currentPage: 1,
   selectedEntryId: null,
   expandedEntryId: null,
-  scrollToEntryId: null
+  scrollToEntryId: null,
+  // Fiche complète ouverte dans la carte (mobile).
+  inlineRecordPatientId: null
 };
+
+// Fiches complètes déjà chargées, réaffichées après un rafraîchissement.
+const inlinePatientRecordCache = new Map();
 
 /*
 |--------------------------------------------------------------------------
@@ -1353,6 +1358,21 @@ function setActiveMenuItem(page) {
 
 let markiPageLoadController = null;
 let markiPageLoadSequence = 0;
+let markiCurrentPage = null;
+
+const MARKI_NAV_ORDER = ['dashboard', 'patients', 'lists', 'settings'];
+
+/*
+| Sens de la transition : la page glisse depuis la droite quand on avance
+| dans la barre de navigation, depuis la gauche quand on recule.
+*/
+function getPageTransitionDirection(fromPage, toPage) {
+  const from = MARKI_NAV_ORDER.indexOf(fromPage);
+  const to = MARKI_NAV_ORDER.indexOf(toPage);
+
+  if (from < 0 || to < 0 || from === to) return 'none';
+  return to > from ? 'forward' : 'back';
+}
 
 async function loadPage(page) {
   const mainContent = document.getElementById('main-content');
@@ -1360,6 +1380,9 @@ async function loadPage(page) {
   if (!mainContent) {
     return;
   }
+
+  mainContent.dataset.navDirection = getPageTransitionDirection(markiCurrentPage, page);
+  markiCurrentPage = page;
 
   markiPageLoadController?.abort();
   markiPageLoadController = new AbortController();
@@ -1434,6 +1457,8 @@ function resetDashboardViewState() {
   dashboardState.currentPage = 1;
   dashboardState.selectedEntryId = null;
   dashboardState.scrollToEntryId = null;
+  dashboardState.inlineRecordPatientId = null;
+  inlinePatientRecordCache.clear();
 }
 
 /*
@@ -2110,6 +2135,10 @@ function initDashboardPage() {
   */
   loadDashboardData({
     focusCurrent: true
+  }).then(() => {
+    if (!markiOpenAddPatientAfterLoad) return;
+    markiOpenAddPatientAfterLoad = false;
+    openAddPatientFromFab();
   });
   startDashboardAutoRefresh();
 }
@@ -2289,6 +2318,9 @@ function updateAddPatientButtonState(queue) {
     && queue?.day_status === 'active';
 
   addPatientButton.disabled = !canRegister;
+  document
+    .getElementById('mobileFabAddPatient')
+    ?.classList.toggle('is-unavailable', !canRegister);
 
   const buttonLabel = addPatientButton.querySelector('span');
   const buttonIconUse = addPatientButton.querySelector('use');
@@ -2476,9 +2508,14 @@ function renderPatientRowDetails(entry) {
   const visits = Array.isArray(entry.recent_visits) ? entry.recent_visits : [];
   const patientId = Number(entry.patient_id || 0);
   const canOpenRecord = canOpenPatientRecords() && patientId > 0;
+  // Après un rafraîchissement, la fiche ouverte reste affichée.
+  const cachedRecord = canOpenRecord
+    && dashboardState.inlineRecordPatientId === patientId
+    ? inlinePatientRecordCache.get(patientId)
+    : null;
 
   return `
-    <td class="patient-row-details">
+    <td class="patient-row-details${cachedRecord ? ' has-record' : ''}">
       ${items.length ? `<dl class="patient-row-details__grid">${items.join('')}</dl>` : ''}
       ${note ? `
         <div class="patient-row-details__note">
@@ -2492,18 +2529,195 @@ function renderPatientRowDetails(entry) {
           <ul class="visit-history">${renderPatientHistory(visits)}</ul>
         </div>
       ` : ''}
+      ${cachedRecord ? renderInlinePatientRecord(cachedRecord, note, { animate: false }) : ''}
       ${canOpenRecord ? `
         <button
           type="button"
           class="patient-row-details__record"
           data-patient-id="${patientId}"
+          aria-expanded="${cachedRecord ? 'true' : 'false'}"
         >
-          <span>Voir la fiche complète</span>
-          <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-arrow-right"></use></svg>
+          <span>${cachedRecord ? 'Masquer la fiche complète' : 'Voir la fiche complète'}</span>
+          <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-chevron-down"></use></svg>
         </button>
       ` : ''}
     </td>
   `;
+}
+
+/*
+| Fiche complète affichée directement dans la carte du patient (mobile).
+| Seules les informations renseignées apparaissent.
+*/
+function renderInlinePatientRecord(patient, rowNote = '', { animate = true } = {}) {
+  const fields = [
+    ['Téléphone', patient.phone
+      ? (window.MarkiPhone ? window.MarkiPhone.formatMobile(patient.phone) : patient.phone)
+      : ''],
+    ['Date de naissance', patient.birth_date ? formatBirthDate(patient.birth_date) : ''],
+    ['E-mail', patient.email],
+    ['Adresse', patient.address],
+    ['Patient depuis', patient.created_at ? formatVisitDate(patient.created_at) : '']
+  ].filter(([, value]) => String(value || '').trim() !== '');
+
+  const notes = String(patient.notes_non_medical || '').trim();
+  const visits = (Array.isArray(patient.recent_visits) ? patient.recent_visits : [])
+    .map(visit => ({
+      status: visit.status,
+      visit_at: visit.ended_at || visit.started_at || visit.created_at
+    }));
+
+  return `
+    <section class="patient-row-record${animate ? '' : ' is-static'}" aria-label="Fiche complète">
+      <div class="patient-row-record__inner">
+        <p class="patient-row-record__title">
+          <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-document-user"></use></svg>
+          <span>Fiche complète</span>
+        </p>
+
+        ${fields.length ? `
+          <dl class="patient-row-record__grid">
+            ${fields.map(([label, value]) => `
+              <div class="patient-row-record__field">
+                <dt>${escapeHtml(label)}</dt>
+                <dd>${escapeHtml(value)}</dd>
+              </div>
+            `).join('')}
+          </dl>
+        ` : ''}
+
+        ${notes && notes !== rowNote ? `
+          <div class="patient-row-details__note">
+            <span>Note cabinet</span>
+            <p>${escapeHtml(notes)}</p>
+          </div>
+        ` : ''}
+
+        <div class="patient-row-details__visits patient-row-record__visits">
+          <span>Historique des visites (${visits.length})</span>
+          ${visits.length
+            ? `<ul class="visit-history">${renderPatientHistory(visits)}</ul>`
+            : '<p class="patient-row-record__empty">Aucune visite enregistrée.</p>'}
+        </div>
+
+        <button
+          type="button"
+          class="patient-row-record__open"
+          data-patient-id="${Number(patient.id) || 0}"
+        >
+          <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-pencil"></use></svg>
+          <span>Modifier la fiche</span>
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+function renderInlinePatientRecordLoading() {
+  return `
+    <section class="patient-row-record is-loading" aria-label="Chargement de la fiche" aria-busy="true">
+      <div class="patient-row-record__inner">
+        <span class="mk-skeleton mk-skeleton--title"></span>
+        <span class="mk-skeleton mk-skeleton--text"></span>
+        <span class="mk-skeleton mk-skeleton--text"></span>
+      </div>
+    </section>
+  `;
+}
+
+function setInlineRecordButtonState(button, isOpen) {
+  if (!button) return;
+  button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  const label = button.querySelector('span');
+  if (label) {
+    label.textContent = isOpen ? 'Masquer la fiche complète' : 'Voir la fiche complète';
+  }
+}
+
+function closeInlinePatientRecord(detailsCell) {
+  const section = detailsCell?.querySelector('.patient-row-record');
+  dashboardState.inlineRecordPatientId = null;
+  detailsCell?.classList.remove('has-record');
+  setInlineRecordButtonState(detailsCell?.querySelector('.patient-row-details__record'), false);
+
+  if (!section) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) {
+    section.remove();
+    return;
+  }
+
+  section.classList.add('is-leaving');
+  section.addEventListener('animationend', () => section.remove(), { once: true });
+  // Filet de sécurité si l'animation ne se déclenche pas.
+  window.setTimeout(() => section.remove(), 400);
+}
+
+async function toggleInlinePatientRecord(button) {
+  const detailsCell = button.closest('.patient-row-details');
+  const patientId = Number(button.dataset.patientId || 0);
+
+  if (!detailsCell || patientId <= 0) return;
+
+  if (detailsCell.querySelector('.patient-row-record')) {
+    closeInlinePatientRecord(detailsCell);
+    return;
+  }
+
+  dashboardState.inlineRecordPatientId = patientId;
+  setInlineRecordButtonState(button, true);
+
+  const rowNote = detailsCell.querySelector('.patient-row-details__note p')?.textContent?.trim() || '';
+  const cached = inlinePatientRecordCache.get(patientId);
+
+  if (cached) {
+    button.insertAdjacentHTML('beforebegin', renderInlinePatientRecord(cached, rowNote));
+    detailsCell.classList.add('has-record');
+    return;
+  }
+
+  button.insertAdjacentHTML('beforebegin', renderInlinePatientRecordLoading());
+  button.disabled = true;
+
+  try {
+    const response = await fetch(
+      `api/patient_details.php?patient_id=${encodeURIComponent(patientId)}`,
+      { cache: 'no-store' }
+    );
+    const result = await parseJsonResponseSafely(response);
+    const patient = result?.data?.patient;
+
+    if (!response.ok || !result?.ok || !patient) {
+      throw new Error(result?.message || 'Fiche patient introuvable.');
+    }
+
+    inlinePatientRecordCache.set(patientId, patient);
+
+    // La carte a pu être refermée, ou redessinée par le rafraîchissement.
+    if (dashboardState.inlineRecordPatientId !== patientId) return;
+
+    const liveButton = detailsCell.isConnected
+      ? button
+      : document.querySelector(
+        `.patient-row.is-expanded .patient-row-details__record[data-patient-id="${patientId}"]`
+      );
+    const liveCell = liveButton?.closest('.patient-row-details');
+    if (!liveCell) return;
+
+    liveCell.querySelector('.patient-row-record')?.remove();
+    liveButton.insertAdjacentHTML('beforebegin', renderInlinePatientRecord(patient, rowNote));
+    liveCell.classList.add('has-record');
+    setInlineRecordButtonState(liveButton, true);
+  } catch (error) {
+    console.error('Fiche complète :', error);
+    detailsCell.querySelector('.patient-row-record.is-loading')?.remove();
+    dashboardState.inlineRecordPatientId = null;
+    setInlineRecordButtonState(button, false);
+    showToast(error.message || 'Impossible de charger la fiche patient.', 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 /*
@@ -3116,6 +3330,15 @@ function togglePatientRowExpansion(row, entryId) {
   document.querySelectorAll('.patient-row.is-expanded').forEach(openRow => {
     openRow.classList.remove('is-expanded');
     openRow.setAttribute('aria-expanded', 'false');
+
+    // Une carte refermée referme aussi sa fiche complète.
+    const detailsCell = openRow.querySelector('.patient-row-record')?.closest('.patient-row-details');
+    if (detailsCell) {
+      detailsCell.querySelector('.patient-row-record')?.remove();
+      detailsCell.classList.remove('has-record');
+      setInlineRecordButtonState(detailsCell.querySelector('.patient-row-details__record'), false);
+      dashboardState.inlineRecordPatientId = null;
+    }
   });
 
   row.classList.toggle('is-expanded', willExpand);
@@ -3137,7 +3360,18 @@ function bindPatientRowEvents(entries) {
 
       const recordButton = event.target.closest('.patient-row-details__record');
       if (recordButton) {
-        openPatientFullRecord(Number(recordButton.dataset.patientId || 0));
+        // Sur téléphone, la fiche s'ouvre dans la carte au lieu de changer de page.
+        if (window.matchMedia('(max-width: 768px)').matches) {
+          toggleInlinePatientRecord(recordButton);
+        } else {
+          openPatientFullRecord(Number(recordButton.dataset.patientId || 0));
+        }
+        return;
+      }
+
+      const openRecordButton = event.target.closest('.patient-row-record__open');
+      if (openRecordButton) {
+        openPatientFullRecord(Number(openRecordButton.dataset.patientId || 0));
         return;
       }
 
@@ -3325,9 +3559,38 @@ document.querySelectorAll('.sidebar__item, .mobile-bottom-nav__item').forEach(it
     });
 });
 
+/*
+| Bouton « + » de la barre mobile : la fenêtre d'ajout vit dans la page
+| Liste du jour. Depuis une autre page, on y retourne puis on l'ouvre.
+*/
+let markiOpenAddPatientAfterLoad = false;
+
+function openAddPatientFromFab() {
+  const openBtn = document.getElementById('openAddPatientModalBtn');
+
+  if (openBtn?.disabled) {
+    const reason = openBtn.querySelector('span')?.textContent?.trim();
+    showToast(
+      reason ? `${reason} : ajout impossible pour le moment.` : 'Ajout impossible pour le moment.',
+      'error'
+    );
+    return;
+  }
+
+  openAddPatientModal();
+}
+
 document.getElementById('mobileFabAddPatient')?.addEventListener('click', function (event) {
     event.preventDefault();
-    openAddPatientModal();
+
+    if (document.getElementById('addPatientModal')) {
+      openAddPatientFromFab();
+      return;
+    }
+
+    markiOpenAddPatientAfterLoad = true;
+    setActiveMenuItem('dashboard');
+    loadPage('dashboard');
 });
 
 // ==========================================================
