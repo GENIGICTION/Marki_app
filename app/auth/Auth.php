@@ -401,6 +401,8 @@ final class Auth
             'public_registration_save.php' => ['settings.manage_doctor'],
             'public_registration_toggle.php' => ['settings.manage_doctor'],
             'public_registration_revoke.php' => ['settings.manage_doctor'],
+            'doctor_schedule_get.php' => ['settings.manage_doctor'],
+            'doctor_schedule_save.php' => ['settings.manage_doctor'],
             'team_list.php' => ['team.manage'],
             'team_save.php' => ['team.manage'],
             'team_toggle_status.php' => ['team.manage'],

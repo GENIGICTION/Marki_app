@@ -29,9 +29,9 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="../assets/design-system/marki-theme.css?v=20261017-dates1">
-    <link rel="stylesheet" href="assets/registration.css?v=20260830-ui1">
+    <link rel="stylesheet" href="assets/registration.css?v=20261024-phase2b">
     <script src="../assets/js/phone-input.js?v=20260830-ui1" defer></script>
-    <script src="assets/registration.js?v=20260830-ui1" defer></script>
+    <script src="assets/registration.js?v=20261024-phase2b" defer></script>
     <script src="../assets/js/marki-datepicker.js?v=20261017-dates1" defer></script>
 </head>
 <body>
@@ -194,6 +194,36 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
                     <span>Votre numéro et votre suivi restent strictement confidentiels et privés.</span>
                 </p>
             </div>
+
+            <section id="registration-schedule" class="public-schedule" aria-labelledby="registration-schedule-title" hidden>
+                <h2 id="registration-schedule-title" class="public-schedule__title">
+                    <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-clock"></use></svg>
+                    <span>Horaires du cabinet</span>
+                </h2>
+
+                <ul class="public-schedule__days">
+                    <li class="public-schedule__day" data-schedule-day="today">
+                        <span class="public-schedule__when">Aujourd’hui</span>
+                        <span class="public-schedule__status" data-schedule-status></span>
+                        <span class="public-schedule__hours" data-schedule-hours></span>
+                    </li>
+                    <li class="public-schedule__day" data-schedule-day="tomorrow">
+                        <span class="public-schedule__when">Demain</span>
+                        <span class="public-schedule__status" data-schedule-status></span>
+                        <span class="public-schedule__hours" data-schedule-hours></span>
+                    </li>
+                </ul>
+
+                <div class="public-schedule__notes-wrap" id="registration-schedule-notes-wrap">
+                    <h3 class="public-schedule__subtitle">À noter</h3>
+                    <ul class="public-schedule__notes" id="registration-schedule-notes"></ul>
+                </div>
+
+                <details class="public-schedule__week" id="registration-schedule-week" hidden>
+                    <summary>Voir les horaires de la semaine</summary>
+                    <dl id="registration-schedule-week-list"></dl>
+                </details>
+            </section>
         </section>
 
         <footer class="public-registration-footer">

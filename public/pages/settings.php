@@ -318,6 +318,164 @@ function settingsHelp(string $title, string $text): string
     </div>
   </div>
 
+  <section id="doctor-schedule-section" class="v1-card schedule-card v1-collapsible-section is-collapsed" aria-labelledby="doctor-schedule-title">
+    <div class="v1-card__header">
+      <div class="v1-section-title">
+        <span class="v1-section-icon v1-section-icon--schedule" aria-hidden="true"><svg class="mk-icon"><use href="#mk-calendar"></use></svg></span>
+        <p class="v1-page__eyebrow">Horaires</p>
+        <h3 id="doctor-schedule-title">Jours et horaires de travail <?= settingsHelp('Jours et horaires', 'Indiquez vos jours et vos heures de travail, et les jours où ça change (fermeture, congés, uniquement sur rendez-vous…). Les patients voient tout cela quand ils scannent votre QR code.') ?></h3>
+        <p>Les patients les voient en scannant votre QR code.</p>
+      </div>
+      <div class="v1-collapsible-section__actions">
+        <button
+          type="button"
+          class="v1-button v1-button--secondary v1-section-toggle"
+          data-settings-section-toggle="doctor-schedule-section"
+          aria-expanded="false"
+          aria-controls="doctor-schedule-section-body"
+        >
+          <span data-section-toggle-label>Afficher</span>
+          <span class="v1-section-toggle__chevron" aria-hidden="true">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <div id="doctor-schedule-section-body" class="v1-collapsible-section__body">
+      <div id="schedule-message" class="v1-message" role="status" aria-live="polite"></div>
+
+      <div class="schedule-layout">
+        <form id="schedule-week-form" class="schedule-panel" novalidate>
+          <div class="schedule-panel__head">
+            <h4>Semaine habituelle</h4>
+            <p>Cochez les jours travaillés. Ajoutez un 2<sup>e</sup> créneau si vous faites une pause à midi.</p>
+          </div>
+
+          <div class="schedule-week" id="schedule-week">
+            <p class="schedule-empty">Chargement des horaires…</p>
+          </div>
+
+          <button type="button" class="schedule-link-button" id="schedule-copy-first-day">
+            Appliquer les horaires du premier jour coché à tous les jours cochés
+          </button>
+
+          <label class="v1-field schedule-general-note">
+            <span>Note permanente pour les patients <small>(facultatif)</small></span>
+            <textarea id="schedule-general-note" rows="2" maxlength="500" placeholder="Ex. : Le médecin ne travaille pas les jours fériés."></textarea>
+            <span class="schedule-suggestions" data-suggestions-for="schedule-general-note">
+              <button type="button">Le médecin ne travaille pas les jours fériés.</button>
+              <button type="button">Consultations sur rendez-vous le samedi.</button>
+            </span>
+          </label>
+
+          <label class="qr-admin-check schedule-enforce">
+            <input type="checkbox" id="schedule-enforce-hours">
+            <span>Refuser les inscriptions QR en dehors de ces horaires <?= settingsHelp('Refuser hors horaires', 'Si vous cochez, un patient qui scanne le QR en dehors de vos créneaux ne pourra pas s’inscrire. Il verra vos horaires à la place. Sinon, les horaires sont seulement affichés pour information.') ?></span>
+          </label>
+
+          <div class="qr-admin-form-actions">
+            <button type="submit" class="v1-button v1-button--primary" id="schedule-save-week">Enregistrer les horaires</button>
+          </div>
+        </form>
+
+        <section class="schedule-panel" aria-labelledby="schedule-days-title">
+          <div class="schedule-panel__head">
+            <h4 id="schedule-days-title">Jours particuliers et notes</h4>
+            <p>Fermeture, congés, horaires différents ou simple message pour une date précise.</p>
+          </div>
+
+          <div class="schedule-quick">
+            <button type="button" class="v1-button v1-button--secondary" data-schedule-quick="today">Fermé aujourd’hui</button>
+            <button type="button" class="v1-button v1-button--secondary" data-schedule-quick="tomorrow">Fermé demain</button>
+            <button type="button" class="v1-button v1-button--primary" data-schedule-quick="new">
+              <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-plus"></use></svg>
+              <span>Ajouter une date</span>
+            </button>
+          </div>
+
+          <ul class="schedule-days" id="schedule-days">
+            <li class="schedule-empty">Chargement…</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <div id="schedule-day-modal" class="team-modal" hidden aria-hidden="true">
+    <button type="button" class="team-modal__backdrop" data-close-schedule-day aria-label="Fermer"></button>
+    <div class="team-modal__dialog schedule-day-dialog" role="dialog" aria-modal="true" aria-labelledby="schedule-day-title">
+      <form id="schedule-day-form" class="v1-form team-form" novalidate>
+        <div class="team-form__header">
+          <div>
+            <p class="v1-page__eyebrow">Jour particulier</p>
+            <h4 id="schedule-day-title">Ajouter une date</h4>
+          </div>
+          <button type="button" class="v1-icon-button" data-close-schedule-day aria-label="Fermer"><svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-close"></use></svg></button>
+        </div>
+
+        <label class="v1-field">
+          <span>Date <strong class="required-mark" aria-hidden="true">*</strong></span>
+          <input type="date" id="schedule-day-date" required>
+          <small class="v1-field-error" data-schedule-error="date"></small>
+        </label>
+
+        <fieldset class="schedule-modes">
+          <legend>Ce jour-là…</legend>
+          <label class="schedule-mode">
+            <input type="radio" name="schedule_mode" value="closed" checked>
+            <span><strong>Le cabinet est fermé</strong><small>Personne ne peut s’inscrire avec le QR.</small></span>
+          </label>
+          <label class="schedule-mode">
+            <input type="radio" name="schedule_mode" value="custom_hours">
+            <span><strong>Les horaires changent</strong><small>Ex. : seulement le matin.</small></span>
+          </label>
+          <label class="schedule-mode">
+            <input type="radio" name="schedule_mode" value="note">
+            <span><strong>Ouvert normalement, avec un message</strong><small>Ex. : uniquement sur rendez-vous.</small></span>
+          </label>
+          <small class="v1-field-error" data-schedule-error="mode"></small>
+        </fieldset>
+
+        <div class="schedule-day-slots" id="schedule-day-slots" hidden>
+          <div class="schedule-slot" data-day-slot="0">
+            <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" class="schedule-time" aria-label="Début du créneau 1" data-slot-open value="08:00">
+            <span aria-hidden="true">–</span>
+            <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" class="schedule-time" aria-label="Fin du créneau 1" data-slot-close value="12:00">
+          </div>
+          <div class="schedule-slot" data-day-slot="1" hidden>
+            <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" class="schedule-time" aria-label="Début du créneau 2" data-slot-open value="14:00">
+            <span aria-hidden="true">–</span>
+            <input type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" class="schedule-time" aria-label="Fin du créneau 2" data-slot-close value="17:00">
+            <button type="button" class="schedule-slot__remove" data-day-slot-remove aria-label="Retirer le 2e créneau"><svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-close"></use></svg></button>
+          </div>
+          <button type="button" class="schedule-link-button" data-day-slot-add>+ Ajouter un créneau l’après-midi</button>
+          <small class="v1-field-error" data-schedule-error="slots"></small>
+        </div>
+
+        <label class="v1-field">
+          <span>Message pour les patients <small id="schedule-day-note-optional">(facultatif)</small></span>
+          <textarea id="schedule-day-note" rows="2" maxlength="500" placeholder="Ex. : Uniquement sur rendez-vous."></textarea>
+          <span class="schedule-suggestions" data-suggestions-for="schedule-day-note">
+            <button type="button">Uniquement sur rendez-vous.</button>
+            <button type="button">Uniquement les urgences.</button>
+            <button type="button">Le médecin est en congé.</button>
+            <button type="button">Jour férié.</button>
+            <button type="button">Consultations des enfants uniquement.</button>
+          </span>
+          <small class="v1-field-error" data-schedule-error="note"></small>
+        </label>
+
+        <div class="v1-form__actions">
+          <button type="button" class="v1-button v1-button--secondary" data-close-schedule-day>Annuler</button>
+          <button type="submit" class="v1-button v1-button--primary" id="schedule-day-save">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <?php endif; ?>
 
   <?php if ($canManageTeam): ?>

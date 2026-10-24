@@ -220,10 +220,105 @@
     }
   }
 
+  function scheduleHours(day) {
+    if (!day || day.status === 'unknown') return '';
+    if (day.status === 'closed') return '';
+    return (day.slots || []).map(slot => `${slot.open} – ${slot.close}`).join(' · ');
+  }
+
+  function renderScheduleDay(element, day) {
+    if (!element || !day) return;
+
+    const status = element.querySelector('[data-schedule-status]');
+    const hours = element.querySelector('[data-schedule-hours]');
+    const labels = {
+      open: day.special_hours ? 'Horaires modifiés' : 'Ouvert',
+      closed: 'Fermé',
+      unknown: 'Non communiqué'
+    };
+
+    element.dataset.status = day.status;
+    status.textContent = labels[day.status] || '';
+    hours.textContent = scheduleHours(day);
+    hours.hidden = hours.textContent === '';
+  }
+
+  /*
+  | Bloc « horaires » : aujourd'hui, demain, notes datées, note permanente
+  | et horaires de la semaine. Masqué si le médecin n'a rien renseigné.
+  */
+  function renderSchedule(schedule) {
+    const section = document.getElementById('registration-schedule');
+    if (!section) return;
+
+    if (!schedule?.configured) {
+      section.hidden = true;
+      return;
+    }
+
+    const showDays = schedule.has_weekly_hours
+      || schedule.today?.status !== 'unknown'
+      || schedule.tomorrow?.status !== 'unknown';
+    section.querySelector('.public-schedule__days').hidden = !showDays;
+    renderScheduleDay(section.querySelector('[data-schedule-day="today"]'), schedule.today);
+    renderScheduleDay(section.querySelector('[data-schedule-day="tomorrow"]'), schedule.tomorrow);
+
+    const notes = [];
+    if (schedule.today?.note) notes.push({ when: 'Aujourd’hui', text: schedule.today.note, important: true });
+    if (schedule.tomorrow?.note) notes.push({ when: 'Demain', text: schedule.tomorrow.note });
+
+    (schedule.upcoming || []).forEach(day => {
+      const detail = day.status === 'closed'
+        ? 'Fermé'
+        : day.special_hours ? `Horaires : ${scheduleHours(day)}` : '';
+      const text = [detail, day.note].filter(Boolean).join('. ');
+      if (text) notes.push({ when: day.label, text });
+    });
+
+    if (schedule.general_note) notes.push({ when: '', text: schedule.general_note, general: true });
+
+    const list = document.getElementById('registration-schedule-notes');
+    list.replaceChildren(...notes.map(note => {
+      const item = document.createElement('li');
+      item.className = 'public-schedule__note'
+        + (note.important ? ' is-important' : '')
+        + (note.general ? ' is-general' : '');
+
+      if (note.when) {
+        const when = document.createElement('strong');
+        when.textContent = note.when;
+        item.append(when);
+      }
+      const text = document.createElement('span');
+      text.textContent = note.text;
+      item.append(text);
+      return item;
+    }));
+    document.getElementById('registration-schedule-notes-wrap').hidden = notes.length === 0;
+
+    const week = document.getElementById('registration-schedule-week');
+    const weekList = document.getElementById('registration-schedule-week-list');
+    week.hidden = !(schedule.weekly || []).length;
+    weekList.replaceChildren(...(schedule.weekly || []).flatMap(day => {
+      const term = document.createElement('dt');
+      term.textContent = day.label;
+      const value = document.createElement('dd');
+      value.textContent = day.slots.length
+        ? day.slots.map(slot => `${slot.open} – ${slot.close}`).join(' · ')
+        : 'Fermé';
+      value.classList.toggle('is-closed', day.slots.length === 0);
+      return [term, value];
+    }));
+
+    section.hidden = false;
+  }
+
   function renderContext(data) {
     const clinic = data.clinic || {};
     const doctor = data.doctor || {};
     const availability = data.availability || {};
+
+    renderSchedule(data.schedule);
 
     if (elements.introduction) {
       elements.introduction.textContent =

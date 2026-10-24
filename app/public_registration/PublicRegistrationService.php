@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../helpers/PatientDataNormalizer.php';
 require_once __DIR__ . '/PublicRegistrationRepository.php';
+require_once __DIR__ . '/DoctorScheduleRepository.php';
 
 final class PublicRegistrationException extends RuntimeException
 {
@@ -131,6 +132,11 @@ final class PublicRegistrationService
                     (bool) $settings['birth_date_required'],
                 'privacy_consent_required' => true,
             ],
+            'schedule' => (new DoctorScheduleRepository($this->pdo))->publicSchedule(
+                (int) $link['clinic_id'],
+                (int) $link['doctor_id'],
+                $today
+            ),
             'today' => $today,
             'timezone' => $timezone,
         ];
@@ -790,6 +796,11 @@ final class PublicRegistrationService
     ): array {
         $code = 'registration_open';
         $canRegister = true;
+        $closedDayNote = (new DoctorScheduleRepository($this->pdo))->isClosedOn(
+            (int) $link['clinic_id'],
+            (int) $link['doctor_id'],
+            $today
+        );
 
         if (
             (int) $link['is_active'] !== 1
@@ -799,6 +810,10 @@ final class PublicRegistrationService
             || !(bool) $settings['guest_registration_enabled']
         ) {
             $code = 'qr_disabled';
+            $canRegister = false;
+        } elseif ($closedDayNote !== null) {
+            // Le médecin a marqué cette date comme fermée dans ses horaires.
+            $code = 'day_closed';
             $canRegister = false;
         } elseif ($queue === null) {
             $code = 'day_not_open';
@@ -839,6 +854,9 @@ final class PublicRegistrationService
                 'L’inscription par QR code est temporairement indisponible.',
             'outside_schedule' =>
                 'Les inscriptions en ligne ne sont pas disponibles à cette heure.',
+            // La note éventuelle du médecin est affichée dans le bloc horaires.
+            'day_closed' =>
+                'Le cabinet est fermé aujourd’hui. Consultez les prochains jours d’ouverture ci-dessous.',
         ];
 
         return [
@@ -1625,79 +1643,12 @@ final class PublicRegistrationService
         int $doctorId,
         string $today
     ): bool {
-        $now = new DateTimeImmutable('now');
-        $dayOfWeek = (int) $now->format('N');
-        $currentTime = $now->format('H:i:s');
-
-        $exceptionSql = "
-            SELECT
-                mode,
-                registration_open_time,
-                registration_close_time,
-                public_message_override
-            FROM doctor_public_registration_exceptions
-            WHERE clinic_id = :clinic_id
-              AND doctor_id = :doctor_id
-              AND exception_date = :exception_date
-              AND is_active = 1
-            ORDER BY slot_order ASC
-        ";
-        $exceptionStmt = $this->pdo->prepare($exceptionSql);
-        $exceptionStmt->execute([
-            ':clinic_id' => $clinicId,
-            ':doctor_id' => $doctorId,
-            ':exception_date' => $today,
-        ]);
-        $exceptions = $exceptionStmt->fetchAll();
-
-        if ($exceptions !== []) {
-            foreach ($exceptions as $exception) {
-                $mode = strtolower((string) $exception['mode']);
-                if (in_array($mode, ['closed', 'unavailable'], true)) {
-                    continue;
-                }
-
-                if (
-                    $exception['registration_open_time'] !== null
-                    && $exception['registration_close_time'] !== null
-                    && $currentTime >= $exception['registration_open_time']
-                    && $currentTime <= $exception['registration_close_time']
-                ) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        $hoursSql = "
-            SELECT
-                registration_open_time,
-                registration_close_time
-            FROM doctor_public_registration_hours
-            WHERE clinic_id = :clinic_id
-              AND doctor_id = :doctor_id
-              AND day_of_week = :day_of_week
-              AND is_active = 1
-            ORDER BY slot_order ASC
-        ";
-        $hoursStmt = $this->pdo->prepare($hoursSql);
-        $hoursStmt->execute([
-            ':clinic_id' => $clinicId,
-            ':doctor_id' => $doctorId,
-            ':day_of_week' => $dayOfWeek,
-        ]);
-
-        foreach ($hoursStmt->fetchAll() as $slot) {
-            if (
-                $currentTime >= $slot['registration_open_time']
-                && $currentTime <= $slot['registration_close_time']
-            ) {
-                return true;
-            }
-        }
-
-        return false;
+        return (new DoctorScheduleRepository($this->pdo))->isOpenAt(
+            $clinicId,
+            $doctorId,
+            $today,
+            (new DateTimeImmutable('now'))->format('H:i')
+        );
     }
 
     private function isValidBirthDate(

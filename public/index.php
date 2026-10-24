@@ -51,7 +51,7 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
     <script src="assets/js/auth-client.js?v=20261017-header2" defer></script>
     <script src="assets/js/phone-input.js?v=20261017-header2" defer></script>
     <script src="assets/js/password-toggle.js?v=20261017-header2" defer></script>
-    <script src="assets/js/algeria-locations.js?v=20261017-header2" defer></script>
+    <script src="assets/js/algeria-locations.js?v=20261024-phase2" defer></script>
     <script src="assets/js/app.js?v=20261017-header2" defer></script>
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
@@ -60,7 +60,7 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
         referrerpolicy="no-referrer"
         defer
     ></script>
-    <script src="assets/js/v1-tabs.js?v=20261017-header2" defer></script>
+    <script src="assets/js/v1-tabs.js?v=20261024-phase2" defer></script>
     <script src="assets/js/public-registration-admin.js?v=20261017-header2" defer></script>
     <script src="assets/js/team.js?v=20261017-header2" defer></script>
     <script src="assets/js/header.js?v=20261017-header2" defer></script>
@@ -69,8 +69,10 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
     <script src="assets/js/marki-datepicker.js?v=20261017-header2" defer></script>
     <script src="assets/js/roles-guide.js?v=20261024-phase1b" defer></script>
     <script src="assets/js/feedback.js?v=20261024-phase1b" defer></script>
+    <script src="assets/js/doctor-schedule.js?v=20261024-phase2c" defer></script>
     <link rel="stylesheet" href="assets/design-system/marki-theme.css?v=20261017-header2">
-    <link rel="stylesheet" href="assets/css/guide-feedback.css?v=20261024-phase1b">
+    <link rel="stylesheet" href="assets/css/guide-feedback.css?v=20261024-phase2">
+    <link rel="stylesheet" href="assets/css/schedule.css?v=20261024-phase2d">
 </head>
 
 <body>
