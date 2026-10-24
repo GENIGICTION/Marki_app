@@ -67,7 +67,10 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
     <script src="assets/js/marki-motion.js?v=20261017-header2" defer></script>
     <script src="assets/js/help-tips.js?v=20261017-header2" defer></script>
     <script src="assets/js/marki-datepicker.js?v=20261017-header2" defer></script>
+    <script src="assets/js/roles-guide.js?v=20261024-phase1b" defer></script>
+    <script src="assets/js/feedback.js?v=20261024-phase1b" defer></script>
     <link rel="stylesheet" href="assets/design-system/marki-theme.css?v=20261017-header2">
+    <link rel="stylesheet" href="assets/css/guide-feedback.css?v=20261024-phase1b">
 </head>
 
 <body>
@@ -110,6 +113,17 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
                     <p class="time" id="header-current-time">—</p>
                 </div>
 
+                <button
+                    type="button"
+                    class="feedback-trigger"
+                    data-open-feedback
+                    aria-haspopup="dialog"
+                    title="Donner mon avis sur MARKI"
+                >
+                    <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-message"></use></svg>
+                    <span class="feedback-trigger__label">Donner mon avis</span>
+                </button>
+
                 <details class="account-menu">
                     <summary>
                         <?php
@@ -137,6 +151,14 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
                             <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-building"></use></svg>
                             <span><?= e($context['clinic']['name']) ?></span>
                         </p>
+                        <button type="button" class="account-menu__item" data-open-roles-guide>
+                            <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-users"></use></svg>
+                            <span>Qui fait quoi ? (rôles et accès)</span>
+                        </button>
+                        <button type="button" class="account-menu__item" data-open-feedback>
+                            <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-message"></use></svg>
+                            <span>Donner mon avis</span>
+                        </button>
                         <a href="change-password.php" class="account-menu__item">
                             <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-lock"></use></svg>
                             <span>Changer le mot de passe</span>
@@ -270,6 +292,50 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
             </ul>
         </nav>
     </div>
+    <?php require __DIR__ . '/../app/partials/roles_guide_modal.php'; ?>
+
+    <div id="feedback-modal" class="team-modal feedback-modal" hidden aria-hidden="true">
+        <button type="button" class="team-modal__backdrop" data-close-feedback aria-label="Fermer"></button>
+
+        <div class="team-modal__dialog feedback-dialog" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
+            <form id="feedback-form" class="v1-form team-form feedback-form" novalidate>
+                <div class="team-form__header">
+                    <div>
+                        <p class="v1-page__eyebrow">Votre avis compte</p>
+                        <h4 id="feedback-title">Aidez-nous à améliorer MARKI</h4>
+                    </div>
+                    <button type="button" class="v1-icon-button" data-close-feedback aria-label="Fermer"><svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-close"></use></svg></button>
+                </div>
+
+                <p class="feedback-form__intro">Une idée, un problème, quelque chose qui manque ? Écrivez-nous en quelques mots : l’équipe MARKI lit chaque message.</p>
+
+                <fieldset class="feedback-kinds">
+                    <legend class="sr-only">Type de message</legend>
+                    <label class="feedback-kind"><input type="radio" name="kind" value="idea" checked><span>💡 Idée</span></label>
+                    <label class="feedback-kind"><input type="radio" name="kind" value="problem"><span>⚠️ Problème</span></label>
+                    <label class="feedback-kind"><input type="radio" name="kind" value="question"><span>❓ Question</span></label>
+                    <label class="feedback-kind"><input type="radio" name="kind" value="other"><span>💬 Autre</span></label>
+                </fieldset>
+
+                <label class="v1-field v1-field--wide feedback-field">
+                    <span class="sr-only">Votre message</span>
+                    <textarea id="feedback-message" name="message" rows="5" maxlength="2000" required placeholder="Ex. : J’aimerais pouvoir imprimer la liste du jour."></textarea>
+                    <small class="feedback-field__meta">
+                        <span class="v1-field-error" id="feedback-error"></span>
+                        <span id="feedback-counter">0 / 2000</span>
+                    </small>
+                </label>
+
+                <div id="feedback-status" class="v1-message" role="status" aria-live="polite"></div>
+
+                <div class="v1-form__actions">
+                    <button type="button" class="v1-button v1-button--secondary" data-close-feedback>Annuler</button>
+                    <button type="submit" class="v1-button v1-button--primary" id="feedback-submit">Envoyer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div
         class="marki-toast-container"
         id="marki-toast-container"

@@ -327,7 +327,7 @@ function settingsHelp(string $title, string $text): string
         <span class="v1-section-icon v1-section-icon--team" aria-hidden="true"><svg class="mk-icon"><use href="#mk-users"></use></svg></span>
         <p class="v1-page__eyebrow">Équipe et accès</p>
         <h3 id="team-settings-title">Comptes de la structure <?= settingsHelp('Comptes de l’équipe', 'Chaque personne qui travaille avec vous (secrétaire, autre médecin) a son propre compte avec son mot de passe. Vous choisissez ce que chacun a le droit de faire. Si quelqu’un part, désactivez son compte : tout ce qu’il a fait reste enregistré.') ?></h3>
-        <p>Un compte par personne.</p>
+        <p>Ajoutez ici les médecins et les secrétaires de la structure. Un compte par personne.</p>
       </div>
       <div class="v1-collapsible-section__actions">
         <button
@@ -344,10 +344,34 @@ function settingsHelp(string $title, string $text): string
             </svg>
           </span>
         </button>
-        <button type="button" class="v1-button v1-button--primary" id="team-new-account-button">
-          Nouveau compte
-        </button>
       </div>
+    </div>
+
+    <div class="team-quick-actions">
+      <button type="button" class="team-quick-action" data-team-new-account="doctor">
+        <span class="team-quick-action__icon team-quick-action__icon--doctor" aria-hidden="true"><svg class="mk-icon"><use href="#mk-stethoscope"></use></svg></span>
+        <span class="team-quick-action__text">
+          <strong>Ajouter un médecin</strong>
+          <small>Il aura sa propre liste d’attente et son propre QR code.</small>
+        </span>
+        <svg class="mk-icon mk-icon--sm team-quick-action__arrow" aria-hidden="true"><use href="#mk-plus"></use></svg>
+      </button>
+      <button type="button" class="team-quick-action" data-team-new-account="secretary">
+        <span class="team-quick-action__icon team-quick-action__icon--secretary" aria-hidden="true"><svg class="mk-icon"><use href="#mk-user-plus"></use></svg></span>
+        <span class="team-quick-action__text">
+          <strong>Ajouter une secrétaire</strong>
+          <small>Elle gère la liste d’un ou plusieurs médecins.</small>
+        </span>
+        <svg class="mk-icon mk-icon--sm team-quick-action__arrow" aria-hidden="true"><use href="#mk-plus"></use></svg>
+      </button>
+      <button type="button" class="team-quick-action team-quick-action--guide" data-open-roles-guide>
+        <span class="team-quick-action__icon team-quick-action__icon--guide" aria-hidden="true"><svg class="mk-icon"><use href="#mk-info"></use></svg></span>
+        <span class="team-quick-action__text">
+          <strong>Qui fait quoi ?</strong>
+          <small>Rôles, accès et fonctionnement de l’équipe.</small>
+        </span>
+        <svg class="mk-icon mk-icon--sm team-quick-action__arrow" aria-hidden="true"><use href="#mk-arrow-right"></use></svg>
+      </button>
     </div>
 
     <div id="team-settings-section-body" class="v1-collapsible-section__body">
@@ -510,5 +534,18 @@ function settingsHelp(string $title, string $text): string
       </div>
     </div>
   </div>
+  <?php else: ?>
+  <section class="v1-card team-card team-card--readonly" aria-labelledby="team-readonly-title">
+    <div class="v1-section-title">
+      <span class="v1-section-icon v1-section-icon--team" aria-hidden="true"><svg class="mk-icon"><use href="#mk-users"></use></svg></span>
+      <p class="v1-page__eyebrow">Équipe et accès</p>
+      <h3 id="team-readonly-title">Ajouter un médecin ou une secrétaire</h3>
+      <p>Seul l’administrateur de la structure peut créer des comptes et choisir les accès de chacun.</p>
+    </div>
+    <button type="button" class="v1-button v1-button--secondary" data-open-roles-guide>
+      <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-info"></use></svg>
+      <span>Qui fait quoi ?</span>
+    </button>
+  </section>
   <?php endif; ?>
 </section>
