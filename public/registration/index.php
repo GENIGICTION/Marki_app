@@ -29,9 +29,9 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="../assets/design-system/marki-theme.css?v=20261017-dates1">
-    <link rel="stylesheet" href="assets/registration.css?v=20261024-phase2b">
+    <link rel="stylesheet" href="assets/registration.css?v=20261024-phase3">
     <script src="../assets/js/phone-input.js?v=20260830-ui1" defer></script>
-    <script src="assets/registration.js?v=20261024-phase2b" defer></script>
+    <script src="assets/registration.js?v=20261024-phase3" defer></script>
     <script src="../assets/js/marki-datepicker.js?v=20261017-dates1" defer></script>
 </head>
 <body>
@@ -98,6 +98,12 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
                 <div class="public-registration-notice public-registration-notice--success" id="registration-open-message"></div>
 
                 <form id="public-registration-form" class="public-registration-form" novalidate>
+                    <fieldset class="public-registration-field public-date-field" id="registration-date-field" hidden>
+                        <legend>Jour de passage <span aria-hidden="true">*</span></legend>
+                        <div class="public-date-options" id="registration-date-options"></div>
+                        <small class="public-registration-error" data-error-for="queue_date"></small>
+                    </fieldset>
+
                     <div class="public-registration-field">
                         <label for="registration-full-name">
                             Nom complet <span aria-hidden="true">*</span>

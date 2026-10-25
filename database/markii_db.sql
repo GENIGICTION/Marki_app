@@ -305,6 +305,7 @@ CREATE TABLE `doctor_public_registration_settings` (
   `public_session_duration_minutes` int UNSIGNED NOT NULL DEFAULT '720',
   `queue_notifications_enabled` tinyint(1) NOT NULL DEFAULT '0',
   `max_public_registrations_per_day` int UNSIGNED DEFAULT NULL,
+  `advance_registration_days` tinyint UNSIGNED NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -1856,3 +1856,107 @@ button:disabled {
     padding-top: 16px;
   }
 }
+
+/* ==========================================================================
+   Choix du jour de passage (inscription à l'avance)
+   ========================================================================== */
+
+.public-date-field {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.public-date-field[hidden] {
+  display: none;
+}
+
+.public-date-field legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--public-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.public-date-field legend span {
+  color: var(--public-danger);
+}
+
+.public-date-options {
+  display: flex;
+  gap: 8px;
+  margin: 0 -4px;
+  padding: 2px 4px 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.public-date-options::-webkit-scrollbar {
+  display: none;
+}
+
+.public-date-option {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 86px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--public-border);
+  border-radius: 14px;
+  background: var(--public-surface);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.public-date-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.public-date-option strong {
+  color: var(--public-text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.public-date-option small {
+  color: var(--public-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.public-date-option:has(input:checked) {
+  border-color: var(--public-primary);
+  background: rgba(124, 58, 237, 0.06);
+  box-shadow: 0 0 0 3px var(--public-primary-glow);
+}
+
+.public-date-option:has(input:checked) strong {
+  color: var(--public-primary-dark);
+}
+
+.public-date-option:has(input:focus-visible) {
+  outline: 2px solid var(--public-border-focus);
+  outline-offset: 2px;
+}
+
+.public-date-option.is-disabled {
+  border-style: dashed;
+  background: var(--public-surface-alt);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.public-date-option.is-disabled small {
+  color: var(--public-danger-text);
+}

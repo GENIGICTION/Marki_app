@@ -412,3 +412,144 @@
   background: var(--mk-color-danger-soft);
   color: var(--mk-color-danger-text);
 }
+
+/* ==========================================================
+   Liste du jour > Inscriptions à venir
+   ========================================================== */
+
+.upcoming-card {
+  margin-top: var(--mk-space-4);
+  border: 1px solid var(--mk-border-color);
+  border-radius: var(--mk-radius-lg);
+  background: var(--mk-surface-card);
+  box-shadow: var(--mk-shadow-xs);
+}
+
+.upcoming-card[hidden] {
+  display: none;
+}
+
+.upcoming-card__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--mk-space-3);
+  padding: var(--mk-space-3) var(--mk-space-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+.upcoming-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+.upcoming-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--mk-radius-md);
+  background: var(--mk-color-primary-50);
+  color: var(--mk-color-primary-600);
+}
+
+.upcoming-card__title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.upcoming-card__title strong {
+  color: var(--mk-text-main);
+}
+
+.upcoming-card__title small {
+  color: var(--mk-text-muted);
+  font-size: var(--mk-font-size-xs);
+}
+
+.upcoming-card__chevron {
+  color: var(--mk-text-faint);
+  transition: transform var(--mk-transition-fast);
+}
+
+.upcoming-card[open] .upcoming-card__chevron {
+  transform: rotate(180deg);
+}
+
+.upcoming-card__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--mk-space-3);
+  padding: 0 var(--mk-space-4) var(--mk-space-4);
+}
+
+.upcoming-day {
+  padding: var(--mk-space-3);
+  border-radius: var(--mk-radius-md);
+  background: var(--mk-surface-sunken);
+}
+
+.upcoming-day__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mk-space-2);
+  margin-bottom: var(--mk-space-2);
+}
+
+.upcoming-day__head strong {
+  color: var(--mk-text-main);
+  font-size: var(--mk-font-size-sm);
+}
+
+.upcoming-day__head span {
+  color: var(--mk-text-muted);
+  font-size: var(--mk-font-size-xs);
+}
+
+.upcoming-day__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mk-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.upcoming-day__list li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--mk-space-2);
+  padding: var(--mk-space-2);
+  border-radius: var(--mk-radius-sm);
+  background: var(--mk-surface-card);
+  font-size: var(--mk-font-size-sm);
+}
+
+.upcoming-day__num {
+  color: var(--mk-text-brand);
+  font-weight: var(--mk-font-weight-bold);
+  text-align: center;
+}
+
+.upcoming-day__name {
+  overflow: hidden;
+  color: var(--mk-text-main);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upcoming-day__phone {
+  color: var(--mk-text-muted);
+  font-size: var(--mk-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .upcoming-card__body {
+    grid-template-columns: 1fr;
+    padding: 0 var(--mk-space-3) var(--mk-space-3);
+  }
+}

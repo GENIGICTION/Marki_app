@@ -29,3 +29,6 @@ database/*.sqlite
 # Binaires locaux
 tools/bin/
 /markii_db.sql
+
+# Sauvegardes locales de la base
+storage/backups/

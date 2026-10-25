@@ -52,7 +52,7 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
     <script src="assets/js/phone-input.js?v=20261017-header2" defer></script>
     <script src="assets/js/password-toggle.js?v=20261017-header2" defer></script>
     <script src="assets/js/algeria-locations.js?v=20261024-phase2" defer></script>
-    <script src="assets/js/app.js?v=20261017-header2" defer></script>
+    <script src="assets/js/app.js?v=20261024-phase3" defer></script>
     <script
         src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
         integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
@@ -61,7 +61,7 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
         defer
     ></script>
     <script src="assets/js/v1-tabs.js?v=20261024-phase2" defer></script>
-    <script src="assets/js/public-registration-admin.js?v=20261017-header2" defer></script>
+    <script src="assets/js/public-registration-admin.js?v=20261024-phase3" defer></script>
     <script src="assets/js/team.js?v=20261017-header2" defer></script>
     <script src="assets/js/header.js?v=20261017-header2" defer></script>
     <script src="assets/js/marki-motion.js?v=20261017-header2" defer></script>
@@ -70,9 +70,12 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
     <script src="assets/js/roles-guide.js?v=20261024-phase1b" defer></script>
     <script src="assets/js/feedback.js?v=20261024-phase1b" defer></script>
     <script src="assets/js/doctor-schedule.js?v=20261024-phase2c" defer></script>
+    <script src="assets/js/upcoming-registrations.js?v=20261024-phase3b" defer></script>
     <link rel="stylesheet" href="assets/design-system/marki-theme.css?v=20261017-header2">
     <link rel="stylesheet" href="assets/css/guide-feedback.css?v=20261024-phase2">
-    <link rel="stylesheet" href="assets/css/schedule.css?v=20261024-phase2d">
+    <link rel="stylesheet" href="assets/css/schedule.css?v=20261024-phase3">
+    <link rel="stylesheet" href="assets/css/mobile-dashboard.css?v=20261025-m5">
+    <link rel="stylesheet" href="assets/css/settings-info.css?v=20261025-s1">
 </head>
 
 <body>

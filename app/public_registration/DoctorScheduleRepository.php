@@ -294,6 +294,30 @@ final class DoctorScheduleRepository
     }
 
     /**
+     * États des jours $fromDate … $fromDate + $days, indexés par date.
+     */
+    public function dayStatuses(
+        int $clinicId,
+        int $doctorId,
+        string $fromDate,
+        int $days
+    ): array {
+        $week = $this->weeklyHours($clinicId, $doctorId);
+        $start = new DateTimeImmutable($fromDate);
+        $until = $start->modify('+' . $days . ' days')->format('Y-m-d');
+        $exceptions = $this->exceptionsBetween($clinicId, $doctorId, $fromDate, $until);
+        $hasWeeklyHours = self::hasAnySlot($week);
+
+        $statuses = [];
+        for ($offset = 0; $offset <= $days; $offset++) {
+            $date = $start->modify('+' . $offset . ' days')->format('Y-m-d');
+            $statuses[$date] = $this->dayStatus($date, $week, $exceptions, $hasWeeklyHours);
+        }
+
+        return $statuses;
+    }
+
+    /**
      * Utilisé pour bloquer l'inscription hors horaires (si activé).
      * Sans aucun horaire renseigné, on ne bloque pas.
      */

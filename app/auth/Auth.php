@@ -384,6 +384,7 @@ final class Auth
         $rules = [
             'queue_entries.php' => ['queue.view'],
             'queue_today.php' => ['queue.view'],
+            'queues_upcoming.php' => ['queue.view'],
             'queue_add_patient.php' => ['queue.manage'],
             'queue_update_patient.php' => ['queue.manage'],
             'queue_update_status.php' => ['queue.manage'],

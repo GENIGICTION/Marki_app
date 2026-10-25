@@ -10,7 +10,10 @@
     csrf: document.querySelector('meta[name="csrf-token"]')?.content || '',
     allowSharedPhone: false,
     requirements: null,
-    submitting: false
+    submitting: false,
+    dates: [],
+    queueDate: '',
+    todayMessage: ''
   };
 
   const elements = {
@@ -313,6 +316,80 @@
     section.hidden = false;
   }
 
+  const SHORT_MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.',
+    'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+  function shortDate(isoDate) {
+    const [, month, day] = isoDate.split('-').map(Number);
+    return `${day} ${SHORT_MONTHS[month - 1]}`;
+  }
+
+  function selectedDateInfo() {
+    return state.dates.find(date => date.date === state.queueDate) || null;
+  }
+
+  function updateOpenMessage() {
+    if (!elements.openMessage) return;
+
+    const selected = selectedDateInfo();
+    if (!selected || selected.date === state.dates[0]?.date) {
+      elements.openMessage.textContent = state.todayMessage;
+      return;
+    }
+
+    const when = selected.relative
+      ? `${selected.relative.toLowerCase()} (${selected.label})`
+      : selected.label;
+    elements.openMessage.textContent =
+      `Vous vous inscrivez pour ${when}. Votre numéro de passage sera valable ce jour-là.`;
+  }
+
+  /*
+  | Choix du jour de passage : affiché seulement si le médecin autorise
+  | l'inscription à l'avance. Les jours fermés sont visibles mais grisés.
+  */
+  function renderDates(dates = []) {
+    const field = document.getElementById('registration-date-field');
+    const container = document.getElementById('registration-date-options');
+    state.dates = dates;
+
+    const firstOpen = dates.find(date => date.can_register);
+    if (!state.dates.some(date => date.date === state.queueDate && date.can_register)) {
+      state.queueDate = firstOpen?.date || '';
+    }
+
+    if (!field || !container) return;
+
+    field.hidden = dates.length <= 1;
+    container.replaceChildren(...dates.map(date => {
+      const option = document.createElement('label');
+      option.className = 'public-date-option' + (date.can_register ? '' : ' is-disabled');
+
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'queue_date';
+      input.value = date.date;
+      input.disabled = !date.can_register;
+      input.checked = date.date === state.queueDate;
+      input.addEventListener('change', () => {
+        state.queueDate = date.date;
+        updateOpenMessage();
+        setMessage();
+      });
+
+      const main = document.createElement('strong');
+      main.textContent = date.relative || date.label.split(' ')[0];
+      const sub = document.createElement('small');
+      sub.textContent = date.can_register ? shortDate(date.date) : 'Fermé';
+
+      option.append(input, main, sub);
+      if (!date.can_register) option.title = date.message || 'Indisponible';
+      return option;
+    }));
+
+    updateOpenMessage();
+  }
+
   function renderContext(data) {
     const clinic = data.clinic || {};
     const doctor = data.doctor || {};
@@ -348,9 +425,15 @@
 
     setHidden(elements.unavailable, true);
     setHidden(elements.content, false);
-    if (elements.openMessage) {
-      elements.openMessage.textContent = availability.message || '';
-    }
+
+    const dates = Array.isArray(data.dates) && data.dates.length
+      ? data.dates
+      : [{ date: data.today, label: '', relative: 'Aujourd’hui', can_register: true, message: availability.message }];
+    const today = dates[0];
+    state.todayMessage = today?.can_register
+      ? (availability.message || '')
+      : `${today?.message || 'Inscription impossible aujourd’hui.'} Choisissez un autre jour ci-dessous.`;
+    renderDates(dates);
 
     const birthRequired = Boolean(state.requirements?.birth_date_required);
     if (elements.birthDate) elements.birthDate.required = birthRequired;
@@ -371,7 +454,8 @@
       phone: elements.phone?.value.trim() || '',
       birth_date: frenchBirthDateToIso(elements.birthDate?.value) || '',
       privacy_consent: Boolean(elements.consent?.checked),
-      allow_shared_phone: state.allowSharedPhone
+      allow_shared_phone: state.allowSharedPhone,
+      queue_date: state.queueDate
     };
   }
 

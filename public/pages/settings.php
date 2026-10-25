@@ -46,56 +46,41 @@ function settingsHelp(string $title, string $text): string
   <div id="settings-page-message" class="v1-message" role="status" aria-live="polite"></div>
 
   <div class="v1-settings-grid">
-    <section class="v1-card" id="clinic-settings-card" aria-labelledby="clinic-settings-title">
-      <div class="v1-card__header">
-        <div class="v1-section-title">
-          <span class="v1-section-icon v1-section-icon--clinic" aria-hidden="true"><svg class="mk-icon"><use href="#mk-building"></use></svg></span>
-          <p class="v1-page__eyebrow">Structure</p>
-          <h3 id="clinic-settings-title">Cabinet ou clinique <?= settingsHelp('Cabinet ou clinique', 'Ce sont les informations de votre cabinet : nom, téléphone et adresse. Le nom du cabinet est montré aux patients quand ils s’inscrivent avec le QR code.') ?></h3>
-        </div>
+    <section class="v1-card settings-info-card" id="clinic-settings-card" aria-labelledby="clinic-settings-title">
+      <header class="settings-info-card__head">
+        <span class="v1-section-icon v1-section-icon--clinic" aria-hidden="true"><svg class="mk-icon"><use href="#mk-building"></use></svg></span>
+        <h3 id="clinic-settings-title">Structure <?= settingsHelp('Cabinet ou clinique', 'Ce sont les informations de votre cabinet : nom, téléphone et adresse. Le nom du cabinet est montré aux patients quand ils s’inscrivent avec le QR code.') ?></h3>
         <button type="button" class="v1-button v1-button--secondary v1-settings-edit-button" id="clinic-settings-edit-button">
           <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-pencil"></use></svg>
           <span>Modifier</span>
         </button>
-      </div>
+      </header>
 
-      <div class="v1-settings-summary">
-        <div class="v1-settings-identity v1-settings-identity--clinic">
-          <span class="v1-settings-identity__icon" aria-hidden="true"><svg class="mk-icon"><use href="#mk-settings"></use></svg></span>
-          <div><strong id="settings-view-clinic-name">—</strong><span id="settings-view-clinic-type">—</span></div>
-        </div>
-        <dl class="v1-profile-details">
-          <div class="v1-profile-detail"><dt>Téléphone</dt><dd id="settings-view-clinic-phone">Non renseigné</dd></div>
-          <div class="v1-profile-detail v1-profile-detail--email"><dt>Wilaya / région</dt><dd id="settings-view-clinic-wilaya">Non renseignée</dd></div>
-          <div class="v1-profile-detail v1-profile-detail--address"><dt>Adresse</dt><dd id="settings-view-clinic-address">Non renseignée</dd></div>
-          <div class="v1-profile-detail v1-profile-detail--notes"><dt>Fuseau horaire</dt><dd class="v1-settings-timezone"><img id="settings-view-timezone-flag" src="assets/icons/flags/dz.svg" alt=""><span id="settings-view-clinic-timezone">—</span></dd></div>
-        </dl>
-      </div>
+      <dl class="settings-info-list">
+        <div><dt>Nom</dt><dd><strong id="settings-view-clinic-name">—</strong> <span class="settings-info-list__muted">· <span id="settings-view-clinic-type">—</span></span></dd></div>
+        <div><dt>Téléphone</dt><dd id="settings-view-clinic-phone">Non renseigné</dd></div>
+        <div><dt>Région</dt><dd id="settings-view-clinic-wilaya">Non renseignée</dd></div>
+        <div><dt>Adresse</dt><dd id="settings-view-clinic-address">Non renseignée</dd></div>
+        <div><dt>Fuseau horaire</dt><dd class="v1-settings-timezone"><img id="settings-view-timezone-flag" src="assets/icons/flags/dz.svg" alt=""><span id="settings-view-clinic-timezone">—</span></dd></div>
+      </dl>
     </section>
 
-    <section class="v1-card" id="doctor-settings-card" aria-labelledby="doctor-settings-title">
-      <div class="v1-card__header">
-        <div class="v1-section-title">
-          <span class="v1-section-icon v1-section-icon--doctor" aria-hidden="true"><svg class="mk-icon"><use href="#mk-stethoscope"></use></svg></span>
-          <p class="v1-page__eyebrow">Profil professionnel</p>
-          <h3 id="doctor-settings-title">Profil du médecin <?= settingsHelp('Profil du médecin', 'Votre nom et votre spécialité. Les patients les voient sur la page où ils s’inscrivent, pour être sûrs de s’inscrire chez le bon médecin.') ?></h3>
-        </div>
+    <section class="v1-card settings-info-card" id="doctor-settings-card" aria-labelledby="doctor-settings-title">
+      <header class="settings-info-card__head">
+        <span class="v1-section-icon v1-section-icon--doctor" aria-hidden="true"><svg class="mk-icon"><use href="#mk-stethoscope"></use></svg></span>
+        <h3 id="doctor-settings-title">Profil professionnel <?= settingsHelp('Profil du médecin', 'Votre nom et votre spécialité. Les patients les voient sur la page où ils s’inscrivent, pour être sûrs de s’inscrire chez le bon médecin.') ?></h3>
         <button type="button" class="v1-button v1-button--secondary v1-settings-edit-button" id="doctor-settings-edit-button">
           <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-pencil"></use></svg>
           <span>Modifier</span>
         </button>
-      </div>
+      </header>
 
-      <div class="v1-settings-summary">
-        <div class="v1-settings-identity v1-settings-identity--doctor">
-          <span class="v1-settings-identity__icon" aria-hidden="true"><svg class="mk-icon"><use href="#mk-user"></use></svg></span>
-          <div><strong id="settings-view-doctor-name">—</strong><span id="settings-view-doctor-specialty">Spécialité non renseignée</span></div>
-        </div>
-        <dl class="v1-profile-details">
-          <div class="v1-profile-detail"><dt>Numéro d’agrément / licence</dt><dd id="settings-view-doctor-license">Non renseigné</dd></div>
-          <div class="v1-profile-detail v1-profile-detail--address"><dt>Adresse professionnelle</dt><dd id="settings-view-doctor-address">Non renseignée</dd></div>
-        </dl>
-      </div>
+      <dl class="settings-info-list">
+        <div><dt>Médecin</dt><dd><strong id="settings-view-doctor-name">—</strong></dd></div>
+        <div><dt>Spécialité</dt><dd id="settings-view-doctor-specialty">Spécialité non renseignée</dd></div>
+        <div><dt>Agrément</dt><dd id="settings-view-doctor-license">Non renseigné</dd></div>
+        <div><dt>Adresse pro.</dt><dd id="settings-view-doctor-address">Non renseignée</dd></div>
+      </dl>
     </section>
   </div>
 
@@ -228,6 +213,22 @@ function settingsHelp(string $title, string $text): string
           </div>
 
           <div class="v1-form__grid">
+            <label class="v1-field v1-field--wide">
+              <span>Les patients peuvent s’inscrire pour… <?= settingsHelp('Inscription à l’avance', 'Par défaut, le patient s’inscrit seulement pour aujourd’hui, dès minuit. Vous pouvez permettre de s’inscrire pour demain ou pour les jours suivants. Les jours où vous êtes fermé (voir « Jours et horaires de travail ») ne sont jamais proposés.') ?></span>
+              <select id="qr-advance-days" name="advance_registration_days">
+                <option value="0">Aujourd’hui seulement (dès minuit)</option>
+                <option value="1">Aujourd’hui et demain</option>
+                <option value="2">Jusqu’à 2 jours à l’avance</option>
+                <option value="3">Jusqu’à 3 jours à l’avance</option>
+                <option value="4">Jusqu’à 4 jours à l’avance</option>
+                <option value="5">Jusqu’à 5 jours à l’avance</option>
+                <option value="6">Jusqu’à 6 jours à l’avance</option>
+                <option value="7">Jusqu’à 1 semaine à l’avance</option>
+                <option value="14">Jusqu’à 2 semaines à l’avance</option>
+              </select>
+              <small class="v1-field-error" data-qr-error="advance_registration_days"></small>
+            </label>
+
             <label class="qr-admin-check v1-field--wide">
               <input type="checkbox" id="qr-birth-date-required" name="birth_date_required">
               <span>Rendre la date de naissance obligatoire <?= settingsHelp('Date de naissance obligatoire', 'Si vous cochez, le patient doit écrire sa date de naissance pour s’inscrire. C’est utile pour ne pas confondre deux patients qui ont le même nom.') ?></span>
