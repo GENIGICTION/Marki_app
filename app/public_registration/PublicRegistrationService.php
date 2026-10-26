@@ -553,6 +553,184 @@ final class PublicRegistrationService
         }
     }
 
+    /**
+     * « Déjà inscrit ? Suivez votre tour. »
+     *
+     * Retrouve l'inscription en cours (aujourd'hui ou un jour à venir)
+     * chez le médecin du QR avec le téléphone et un mot du nom. Marche
+     * aussi pour un patient ajouté par le secrétariat. Ne révèle jamais
+     * si un numéro existe : une seule réponse « introuvable ».
+     */
+    public function lookup(array $payload, array $config): array
+    {
+        $publicId = trim((string) ($payload['link'] ?? ''));
+        $token = trim((string) ($payload['token'] ?? ''));
+        $link = $this->validatedLink($publicId, $token, $config);
+        $timezone = configureClinicTimezone(
+            $this->pdo,
+            (int) $link['clinic_id'],
+            (string) ($config['app']['timezone'] ?? 'UTC')
+        );
+        $today = (new DateTimeImmutable('now', new DateTimeZone($timezone)))
+            ->format('Y-m-d');
+        $ipHash = PublicRegistrationSecurity::clientIpHash($config);
+        $userAgent = PublicRegistrationSecurity::userAgent();
+
+        $limit = (int) ($config['qr']['rate_limit_attempts'] ?? 20);
+        $windowMinutes = (int) ($config['qr']['rate_limit_minutes'] ?? 15);
+        if ($this->repository->rateLimitCount(
+            (int) $link['id'],
+            $ipHash,
+            $windowMinutes,
+            'lookup_attempt'
+        ) >= $limit) {
+            throw new PublicRegistrationException(
+                'Trop de tentatives ont été effectuées. Réessayez dans quelques minutes.',
+                429,
+                'RATE_LIMITED'
+            );
+        }
+
+        $this->repository->logPublicEvent(
+            (int) $link['id'],
+            'lookup_attempt',
+            'started',
+            $ipHash,
+            $userAgent
+        );
+
+        $phone = PatientDataNormalizer::normalizePhone(
+            (string) ($payload['phone'] ?? '')
+        );
+        $nameWords = $this->nameWords((string) ($payload['name'] ?? ''));
+
+        $errors = [];
+        if ($phone === '' || !PatientDataNormalizer::isValidPhone($phone)) {
+            $errors['phone'] = PatientDataNormalizer::phoneValidationMessage();
+        }
+        if ($nameWords === []) {
+            $errors['name'] = 'Écrivez votre nom ou votre prénom.';
+        }
+        if ($errors !== []) {
+            throw new PublicRegistrationException(
+                'Vérifiez les informations saisies.',
+                422,
+                'VALIDATION_ERROR',
+                $errors
+            );
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT
+                qe.id,
+                qe.queue_id,
+                qe.display_name,
+                qe.status,
+                q.queue_date,
+                p.full_name AS patient_full_name
+             FROM queue_entries qe
+             INNER JOIN queues q
+                ON q.id = qe.queue_id
+             LEFT JOIN patients p
+                ON p.id = qe.patient_id
+               AND p.clinic_id = qe.clinic_id
+             WHERE qe.clinic_id = :clinic_id
+               AND q.doctor_id = :doctor_id
+               AND q.queue_date >= :today
+               AND qe.phone = :phone
+               AND qe.status IN ('waiting', 'called')
+             ORDER BY q.queue_date ASC, qe.position_number ASC
+             LIMIT 20"
+        );
+        $stmt->execute([
+            ':clinic_id' => (int) $link['clinic_id'],
+            ':doctor_id' => (int) $link['doctor_id'],
+            ':today' => $today,
+            ':phone' => $phone,
+        ]);
+
+        $entry = null;
+        foreach ($stmt->fetchAll() as $row) {
+            $knownWords = array_merge(
+                $this->nameWords((string) $row['display_name']),
+                $this->nameWords((string) ($row['patient_full_name'] ?? ''))
+            );
+            if (array_intersect($nameWords, $knownWords) !== []) {
+                $entry = $row;
+                break;
+            }
+        }
+
+        if ($entry === null) {
+            $this->repository->logPublicEvent(
+                (int) $link['id'],
+                'lookup_attempt',
+                'not_found',
+                $ipHash,
+                $userAgent
+            );
+
+            throw new PublicRegistrationException(
+                'Aucune inscription en cours n’a été trouvée avec ces informations. Vérifiez le numéro et le nom donnés au cabinet, ou inscrivez-vous.',
+                404,
+                'REGISTRATION_NOT_FOUND'
+            );
+        }
+
+        $this->repository->ensureDoctorConfiguration(
+            (int) $link['clinic_id'],
+            (int) $link['doctor_id']
+        );
+        $settings = $this->repository->settingsForDoctor(
+            (int) $link['clinic_id'],
+            (int) $link['doctor_id']
+        );
+
+        // Nouveau lien de suivi pour ce téléphone (l'ancien lien est remplacé).
+        $sessionToken = $this->createOrRotatePublicSession(
+            (int) $entry['id'],
+            $settings,
+            $ipHash,
+            $userAgent,
+            (string) $entry['queue_date']
+        );
+
+        $this->repository->logPublicEvent(
+            (int) $link['id'],
+            'lookup_attempt',
+            'found',
+            $ipHash,
+            $userAgent,
+            (int) $entry['queue_id'],
+            (int) $entry['id']
+        );
+
+        return [
+            'session_token' => $sessionToken,
+            'queue_date' => (string) $entry['queue_date'],
+        ];
+    }
+
+    /**
+     * Mots d'un nom, sans accents ni casse (« Benali Mohamed » → [benali, mohamed]).
+     * Les mots de moins de 2 lettres sont ignorés.
+     */
+    private function nameWords(string $name): array
+    {
+        $name = mb_strtolower(trim($name), 'UTF-8');
+        if (class_exists('Normalizer')) {
+            // « é » → « e » : on retire les accents après décomposition.
+            $decomposed = Normalizer::normalize($name, Normalizer::FORM_D);
+            $name = preg_replace('/\p{Mn}+/u', '', $decomposed !== false ? $decomposed : $name) ?? $name;
+        }
+        $words = preg_split('/[^\p{L}\p{N}]+/u', $name) ?: [];
+
+        return array_values(array_unique(array_filter(
+            $words,
+            static fn(string $word): bool => mb_strlen($word, 'UTF-8') >= 2
+        )));
+    }
+
     public function status(string $sessionToken, array $config): array
     {
         $sessionToken = trim($sessionToken);
@@ -1726,7 +1904,18 @@ final class PublicRegistrationService
                 qe.queue_id,
                 qe.clinic_id,
                 qe.patient_id,
-                qe.public_link_id,
+                -- Patient ajouté par le secrétariat : pas de lien QR propre,
+                -- on rattache le suivi au QR du médecin pour les journaux.
+                COALESCE(
+                    qe.public_link_id,
+                    (
+                        SELECT pl.id
+                        FROM public_links pl
+                        WHERE pl.doctor_id = q.doctor_id
+                        ORDER BY pl.id DESC
+                        LIMIT 1
+                    )
+                ) AS public_link_id,
                 qe.display_name,
                 qe.phone,
                 qe.position_number,

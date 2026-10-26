@@ -1960,3 +1960,104 @@ button:disabled {
 .public-date-option.is-disabled small {
   color: var(--public-danger-text);
 }
+
+/* ==========================================================================
+   « Déjà inscrit ? Suivez votre tour »
+   ========================================================================== */
+
+.public-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 24px 0;
+}
+
+.public-lookup[hidden],
+.public-lookup [hidden] {
+  display: none !important;
+}
+
+.public-lookup__saved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--public-success-border);
+  border-radius: 14px;
+  background: var(--public-success-soft);
+  color: var(--public-success-text);
+  font-size: 0.875rem;
+}
+
+.public-lookup__saved-link {
+  color: var(--public-success-text);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.public-lookup__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--public-primary);
+  border-radius: 14px;
+  background: rgba(124, 58, 237, 0.05);
+  color: var(--public-primary-dark);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.public-lookup__toggle span {
+  flex: 1 1 auto;
+}
+
+.public-lookup__toggle strong {
+  font-weight: 700;
+}
+
+.public-lookup__chevron {
+  transition: transform 0.2s ease;
+}
+
+.public-lookup__toggle[aria-expanded="true"] .public-lookup__chevron {
+  transform: rotate(180deg);
+}
+
+.public-lookup__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--public-border);
+  border-radius: 14px;
+  background: var(--public-surface-alt);
+}
+
+.public-lookup__hint {
+  margin: 0;
+  color: var(--public-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.public-lookup__form .public-registration-field {
+  margin: 0;
+}
+
+.public-lookup__submit {
+  border: 0;
+  background: var(--public-primary);
+  color: #fff;
+}
+
+@media (max-width: 480px) {
+  .public-lookup {
+    margin: 4px 16px 0;
+  }
+}

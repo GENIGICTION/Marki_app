@@ -29,9 +29,9 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="../assets/design-system/marki-theme.css?v=20261017-dates1">
-    <link rel="stylesheet" href="assets/registration.css?v=20261024-phase3">
+    <link rel="stylesheet" href="assets/registration.css?v=20261026-phase4">
     <script src="../assets/js/phone-input.js?v=20260830-ui1" defer></script>
-    <script src="assets/registration.js?v=20261024-phase3" defer></script>
+    <script src="assets/registration.js?v=20261026-phase4" defer></script>
     <script src="../assets/js/marki-datepicker.js?v=20261017-dates1" defer></script>
 </head>
 <body>
@@ -200,6 +200,47 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
                     <span>Votre numéro et votre suivi restent strictement confidentiels et privés.</span>
                 </p>
             </div>
+
+            <section id="registration-lookup" class="public-lookup" aria-label="Déjà inscrit" hidden>
+                <div class="public-lookup__saved" id="registration-lookup-saved" hidden>
+                    <span id="registration-lookup-saved-text"></span>
+                    <a id="registration-lookup-saved-link" href="#" class="public-lookup__saved-link">Voir mon suivi</a>
+                </div>
+
+                <button type="button" class="public-lookup__toggle" id="registration-lookup-toggle" aria-expanded="false" aria-controls="registration-lookup-form">
+                    <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-ticket"></use></svg>
+                    <span><strong>Déjà inscrit ?</strong> Suivez votre tour</span>
+                    <svg class="mk-icon mk-icon--sm public-lookup__chevron" aria-hidden="true"><use href="#mk-chevron-down"></use></svg>
+                </button>
+
+                <form id="registration-lookup-form" class="public-lookup__form" novalidate hidden>
+                    <p class="public-lookup__hint">Inscrit en ligne ou au cabinet ? Entrez le numéro et le nom donnés à l’inscription.</p>
+
+                    <div class="public-registration-field">
+                        <label for="registration-lookup-phone">Numéro de téléphone</label>
+                        <div class="public-input-wrapper">
+                            <input type="tel" id="registration-lookup-phone" name="phone" inputmode="numeric" autocomplete="tel" maxlength="13" placeholder="05XX / 06XX / 07XX" data-dz-mobile required>
+                            <svg class="mk-icon mk-icon--sm public-input-icon" aria-hidden="true"><use href="#mk-phone"></use></svg>
+                        </div>
+                        <small class="public-registration-error" data-lookup-error="phone"></small>
+                    </div>
+
+                    <div class="public-registration-field">
+                        <label for="registration-lookup-name">Votre nom ou prénom</label>
+                        <div class="public-input-wrapper">
+                            <input type="text" id="registration-lookup-name" name="name" autocomplete="name" maxlength="191" placeholder="Ex. : Benali" required>
+                            <svg class="mk-icon mk-icon--sm public-input-icon" aria-hidden="true"><use href="#mk-user"></use></svg>
+                        </div>
+                        <small class="public-registration-error" data-lookup-error="name"></small>
+                    </div>
+
+                    <div id="registration-lookup-message" class="public-registration-message" role="alert" aria-live="polite"></div>
+
+                    <button type="submit" id="registration-lookup-submit" class="public-registration-button public-lookup__submit">
+                        <span>Voir mon tour</span>
+                    </button>
+                </form>
+            </section>
 
             <section id="registration-schedule" class="public-schedule" aria-labelledby="registration-schedule-title" hidden>
                 <h2 id="registration-schedule-title" class="public-schedule__title">

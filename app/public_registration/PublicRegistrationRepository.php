@@ -745,7 +745,8 @@ final class PublicRegistrationRepository
     public function rateLimitCount(
         int $publicLinkId,
         string $ipHash,
-        int $minutes
+        int $minutes,
+        string $eventType = 'registration_attempt'
     ): int {
         $minutes = max(1, min(120, $minutes));
         $threshold = date(
@@ -757,11 +758,12 @@ final class PublicRegistrationRepository
             FROM public_link_events
             WHERE public_link_id = :public_link_id
               AND ip_hash = :ip_hash
-              AND event_type = 'registration_attempt'
+              AND event_type = :event_type
               AND created_at >= :threshold
         ";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
+            ':event_type' => $eventType,
             ':public_link_id' => $publicLinkId,
             ':ip_hash' => $ipHash,
             ':threshold' => $threshold,

@@ -11,6 +11,8 @@
     allowSharedPhone: false,
     requirements: null,
     submitting: false,
+    savedFuture: null,
+    lookingUp: false,
     dates: [],
     queueDate: '',
     todayMessage: ''
@@ -131,6 +133,16 @@
       const activeStatuses = ['waiting', 'called'];
 
       if (activeStatuses.includes(status)) {
+        const queueDate = data.data?.registration?.queue_date || '';
+        const today = data.data?.today || '';
+
+        // Inscrit pour un autre jour : on laisse la page d'inscription
+        // ouverte (pour aujourd'hui par exemple) avec un lien vers le suivi.
+        if (queueDate && today && queueDate > today) {
+          state.savedFuture = { queueDate, path: saved.status_path };
+          return false;
+        }
+
         window.location.replace(saved.status_path);
         return true;
       }
@@ -390,12 +402,113 @@
     updateOpenMessage();
   }
 
+  /* =======================================================
+     « Déjà inscrit ? Suivez votre tour »
+     ======================================================= */
+
+  function longDate(isoDate) {
+    const [year, month, day] = String(isoDate).split('-').map(Number);
+    return new Intl.DateTimeFormat('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'UTC'
+    }).format(new Date(Date.UTC(year, month - 1, day)));
+  }
+
+  function renderLookup() {
+    const section = document.getElementById('registration-lookup');
+    if (!section) return;
+    section.hidden = false;
+
+    const saved = document.getElementById('registration-lookup-saved');
+    if (state.savedFuture && saved) {
+      document.getElementById('registration-lookup-saved-text').textContent =
+        `Vous êtes inscrit pour le ${longDate(state.savedFuture.queueDate)}.`;
+      document.getElementById('registration-lookup-saved-link').href = state.savedFuture.path;
+      saved.hidden = false;
+    }
+  }
+
+  function toggleLookup(open) {
+    const toggle = document.getElementById('registration-lookup-toggle');
+    const form = document.getElementById('registration-lookup-form');
+    if (!toggle || !form) return;
+
+    const shouldOpen = open ?? form.hidden;
+    form.hidden = !shouldOpen;
+    toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    if (shouldOpen) {
+      window.MarkiPhone?.bind(form);
+      document.getElementById('registration-lookup-phone')?.focus();
+    }
+  }
+
+  function setLookupMessage(text = '', type = '') {
+    const box = document.getElementById('registration-lookup-message');
+    if (!box) return;
+    box.textContent = text;
+    box.className = 'public-registration-message' + (text && type ? ` is-${type}` : '');
+  }
+
+  async function submitLookup(event) {
+    event.preventDefault();
+    if (state.lookingUp) return;
+
+    document.querySelectorAll('[data-lookup-error]').forEach(element => {
+      element.textContent = '';
+    });
+    setLookupMessage();
+
+    const phone = document.getElementById('registration-lookup-phone').value.trim();
+    const name = document.getElementById('registration-lookup-name').value.trim();
+    const button = document.getElementById('registration-lookup-submit');
+
+    state.lookingUp = true;
+    button.disabled = true;
+
+    try {
+      const response = await fetch('api/lookup.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': state.csrf
+        },
+        body: JSON.stringify({ link: state.link, token: state.token, phone, name })
+      });
+      const data = await readJson(response);
+
+      if (!response.ok || !data?.ok) {
+        Object.entries(data?.errors || {}).forEach(([field, message]) => {
+          const target = document.querySelector(`[data-lookup-error="${field}"]`);
+          if (target) target.textContent = message;
+        });
+        throw new Error(data?.message || 'Inscription introuvable.');
+      }
+
+      saveSession(data.data.session_token, data.data.status_path);
+      window.location.assign(data.data.status_path);
+    } catch (error) {
+      setLookupMessage(error.message, 'error');
+    } finally {
+      state.lookingUp = false;
+      button.disabled = false;
+    }
+  }
+
+  document.getElementById('registration-lookup-toggle')
+    ?.addEventListener('click', () => toggleLookup());
+  document.getElementById('registration-lookup-form')
+    ?.addEventListener('submit', submitLookup);
+
   function renderContext(data) {
     const clinic = data.clinic || {};
     const doctor = data.doctor || {};
     const availability = data.availability || {};
 
     renderSchedule(data.schedule);
+    renderLookup();
 
     if (elements.introduction) {
       elements.introduction.textContent =
