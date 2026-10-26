@@ -112,3 +112,36 @@
     gap: var(--mk-space-2);
   }
 }
+
+/* ==========================================================
+   Bandeau d'abonnement (fin proche / délai de grâce)
+   ========================================================== */
+
+.subscription-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mk-space-2);
+  margin: var(--mk-space-2) var(--mk-space-4) 0;
+  padding: var(--mk-space-2) var(--mk-space-3);
+  border: 1px solid var(--mk-color-warning);
+  border-radius: var(--mk-radius-md);
+  background: var(--mk-color-warning-soft);
+  color: var(--mk-color-warning-text);
+  font-size: var(--mk-font-size-sm);
+  line-height: var(--mk-line-normal);
+}
+
+.subscription-banner p {
+  margin: 0;
+}
+
+.subscription-banner .mk-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.subscription-banner--grace {
+  border-color: var(--mk-color-danger);
+  background: var(--mk-color-danger-soft);
+  color: var(--mk-color-danger-text);
+}

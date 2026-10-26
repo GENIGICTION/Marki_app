@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../subscription.php';
 require_once __DIR__ . '/../session.php';
 require_once __DIR__ . '/../security.php';
 require_once __DIR__ . '/AuthRepository.php';
@@ -17,6 +18,9 @@ final class AuthRateLimitException extends AuthException
 
 final class Auth
 {
+    public const SUBSCRIPTION_EXPIRED_MESSAGE =
+        'L’abonnement de votre structure a expiré. Contactez l’équipe MARKI pour le renouveler.';
+
     private const REMEMBER_COOKIE = 'marki_remember';
     private const DUMMY_PASSWORD_HASH = '$2y$12$taYOGaBOlzZUE4bgzH8FLubMMFj2fv/kbumEcWcPyOEsDcbv3EgjC';
 
@@ -90,11 +94,20 @@ final class Auth
             throw new AuthException('Identifiant ou mot de passe incorrect.');
         }
 
-        configureClinicTimezone(
+        $loginTimezone = configureClinicTimezone(
             db(),
             (int) $clinic['id'],
             (string) ($config['app']['timezone'] ?? 'UTC')
         );
+
+        $subscription = markiSubscriptionState(
+            $clinic['subscription_ends_on'] ?? null,
+            (new DateTimeImmutable('now', new DateTimeZone($loginTimezone)))->format('Y-m-d'),
+            markiSubscriptionGraceDays($config)
+        );
+        if ($subscription['blocked']) {
+            throw new AuthException(self::SUBSCRIPTION_EXPIRED_MESSAGE);
+        }
 
         $user = $repository->findUserForLogin((int) $clinic['id'], $identifier);
 
@@ -307,6 +320,16 @@ final class Auth
         );
         $now = new DateTimeImmutable('now', new DateTimeZone($timezone));
 
+        $subscription = markiSubscriptionState(
+            $user['subscription_ends_on'] ?? null,
+            $now->format('Y-m-d'),
+            markiSubscriptionGraceDays($config)
+        );
+        if ($subscription['blocked']) {
+            self::logout($config, false);
+            self::denyUnauthenticated($config, $api, self::SUBSCRIPTION_EXPIRED_MESSAGE);
+        }
+
         $_SESSION['clinic_id'] = (int) $user['clinic_id'];
         $_SESSION['role_codes'] = $roles;
         $_SESSION['last_activity_at'] = time();
@@ -339,6 +362,7 @@ final class Auth
             'capabilities' => $capabilities,
             'doctors' => $doctors,
             'doctor' => $selectedDoctor,
+            'subscription' => $subscription,
             'timezone' => $timezone,
             'today' => $now->format('Y-m-d'),
             'now' => $now->format('Y-m-d H:i:s'),

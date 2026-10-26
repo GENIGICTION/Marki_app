@@ -624,6 +624,7 @@ final class PublicRegistrationRepository
                 c.phone AS clinic_phone,
                 c.timezone AS clinic_timezone,
                 c.status AS clinic_status,
+                c.subscription_ends_on AS clinic_subscription_ends_on,
                 dp.display_name AS doctor_name,
                 dp.specialty AS doctor_specialty,
                 dp.is_active AS doctor_is_active

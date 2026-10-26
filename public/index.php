@@ -6,6 +6,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
 $context = require __DIR__ . '/../app/web_bootstrap.php';
+require_once __DIR__ . '/../app/support.php';
 
 function e(?string $value): string
 {
@@ -75,7 +76,7 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
     <link rel="stylesheet" href="assets/css/guide-feedback.css?v=20261024-phase2">
     <link rel="stylesheet" href="assets/css/schedule.css?v=20261024-phase3">
     <link rel="stylesheet" href="assets/css/mobile-dashboard.css?v=20261025-m5">
-    <link rel="stylesheet" href="assets/css/settings-info.css?v=20261025-s1">
+    <link rel="stylesheet" href="assets/css/settings-info.css?v=20261026-p5">
 </head>
 
 <body>
@@ -179,6 +180,26 @@ $basePath = rtrim((string) $context['config']['app']['base_path'], '/');
                 </details>
             </div>
         </header>
+
+        <?php
+        $subscription = $context['subscription'] ?? ['status' => 'none'];
+        if (in_array($subscription['status'], ['ending', 'grace'], true)):
+            $formatDay = static fn(string $date): string => markiFormatFrenchDate($date);
+        ?>
+            <div class="subscription-banner subscription-banner--<?= e($subscription['status']) ?>" role="status">
+                <svg class="mk-icon mk-icon--sm" aria-hidden="true"><use href="#mk-alert"></use></svg>
+                <p>
+                    <?php if ($subscription['status'] === 'ending'): ?>
+                        <strong>Votre abonnement MARKI se termine le <?= e($formatDay($subscription['ends_on'])) ?></strong>
+                        (<?= (int) $subscription['days_left'] === 0 ? 'aujourd’hui' : 'dans ' . (int) $subscription['days_left'] . ' jour' . ((int) $subscription['days_left'] > 1 ? 's' : '') ?>).
+                        Contactez l’équipe MARKI pour le renouveler.
+                    <?php else: ?>
+                        <strong>Votre abonnement MARKI a expiré le <?= e($formatDay($subscription['ends_on'])) ?>.</strong>
+                        L’accès et le QR code seront bloqués le <?= e($formatDay($subscription['blocked_on'])) ?>. Contactez l’équipe MARKI pour le renouveler.
+                    <?php endif; ?>
+                </p>
+            </div>
+        <?php endif; ?>
 
         <div class="layout">
             <nav class="sidebar" id="app-sidebar" aria-label="Navigation principale">

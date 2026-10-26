@@ -81,6 +81,10 @@ return [
         ),
     ],
 
+    'subscription' => [
+        // Jours d'utilisation encore permis après la date de fin d'abonnement.
+        'grace_days' => markiEnvInt('MARKI_SUBSCRIPTION_GRACE_DAYS', 7),
+    ],
     'platform' => [
         'allowed_ips' => array_values(array_filter(array_map(
             static fn(string $ip): string => trim($ip),

@@ -366,8 +366,26 @@ final class PlatformAuth
             'id' => (int) $admin['id'],
             'email' => (string) $admin['email'],
             'full_name' => (string) $admin['full_name'],
+            'role' => (string) ($admin['role'] ?? 'owner'),
             'last_login_at' => $admin['last_login_at'] ?? null,
         ];
+    }
+
+    /**
+     * Droits dans l'administration MARKI.
+     * Propriétaire : tout. Agent : créer une structure et renouveler un abonnement.
+     */
+    public static function can(array $admin, string $permission): bool
+    {
+        if (($admin['role'] ?? 'owner') === 'owner') {
+            return true;
+        }
+
+        return in_array($permission, [
+            'invitations',
+            'clinics.view',
+            'subscriptions.renew',
+        ], true);
     }
 
     private static function clientIpHash(array $config): ?string

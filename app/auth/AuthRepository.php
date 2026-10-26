@@ -17,7 +17,7 @@ final class AuthRepository
     public function findClinicBySlug(string $slug): ?array
     {
         $stmt = $this->pdo->prepare(
-            "SELECT id, name, slug, timezone, status
+            "SELECT id, name, slug, timezone, status, subscription_ends_on
              FROM clinics
              WHERE slug = :slug
              LIMIT 1"
@@ -73,7 +73,8 @@ final class AuthRepository
                 c.name AS clinic_name,
                 c.slug AS clinic_slug,
                 c.timezone,
-                c.status AS clinic_status
+                c.status AS clinic_status,
+                c.subscription_ends_on
              FROM users u
              INNER JOIN clinics c ON c.id = u.clinic_id
              WHERE u.id = :user_id

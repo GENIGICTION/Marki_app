@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../helpers/PatientDataNormalizer.php';
 require_once __DIR__ . '/PublicRegistrationRepository.php';
 require_once __DIR__ . '/DoctorScheduleRepository.php';
+require_once __DIR__ . '/../subscription.php';
 
 final class PublicRegistrationException extends RuntimeException
 {
@@ -1041,10 +1042,17 @@ final class PublicRegistrationService
             0
         )[$date];
 
+        // Abonnement expiré (délai de grâce dépassé) : le QR est coupé.
+        $subscriptionBlocked = markiSubscriptionState(
+            $link['clinic_subscription_ends_on'] ?? null,
+            $today
+        )['blocked'];
+
         if (
             (int) $link['is_active'] !== 1
             || (int) $link['doctor_is_active'] !== 1
             || (string) $link['clinic_status'] !== 'active'
+            || $subscriptionBlocked
             || !(bool) $settings['public_registration_enabled']
             || !(bool) $settings['guest_registration_enabled']
         ) {

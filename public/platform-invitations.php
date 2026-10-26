@@ -8,6 +8,9 @@ markiEnforcePlatformIpAllowlist($config);
 
 require_once __DIR__ . '/../app/platform/StructureInvitationRepository.php';
 require_once __DIR__ . '/../app/platform/PlatformAuth.php';
+require_once __DIR__ . '/../app/platform/ClinicSubscriptionRepository.php';
+require_once __DIR__ . '/../app/platform/PlatformFeedbackRepository.php';
+require_once __DIR__ . '/../app/support.php';
 
 function platformE(?string $value): string
 {
@@ -158,10 +161,43 @@ if ($platformAdmin === null) {
 
 $repository = new StructureInvitationRepository($config);
 $platformAuditRepository = new PlatformAdminRepository();
+$subscriptionRepository = new ClinicSubscriptionRepository();
+$feedbackRepository = new PlatformFeedbackRepository();
 $message = '';
 $messageType = '';
 $generatedLink = '';
 $fieldErrors = [];
+
+/*
+| Onglets de l'administration. Un agent ne voit que les invitations et
+| les structures (pour renouveler un abonnement).
+*/
+$platformTabs = [
+    'invitations' => ['label' => 'Invitations', 'permission' => 'invitations'],
+    'clinics' => ['label' => 'Structures et abonnements', 'permission' => 'clinics.view'],
+    'feedback' => ['label' => 'Avis des médecins', 'permission' => 'feedback'],
+    'agents' => ['label' => 'Agents', 'permission' => 'agents'],
+];
+$platformTabs = array_filter(
+    $platformTabs,
+    static fn(array $tab): bool => PlatformAuth::can($platformAdmin, $tab['permission'])
+);
+$tab = (string) ($_POST['tab'] ?? $_GET['tab'] ?? 'invitations');
+if (!isset($platformTabs[$tab])) {
+    $tab = array_key_first($platformTabs) ?? 'invitations';
+}
+
+$platformToday = (new DateTimeImmutable(
+    'now',
+    new DateTimeZone((string) ($config['app']['timezone'] ?? 'Africa/Algiers'))
+))->format('Y-m-d');
+$platformGraceDays = markiSubscriptionGraceDays($config);
+
+$requirePlatformPermission = static function (string $permission) use ($platformAdmin): void {
+    if (!PlatformAuth::can($platformAdmin, $permission)) {
+        throw new AuthException('Votre compte n’a pas le droit de faire cette action.');
+    }
+};
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -181,7 +217,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        if ($action === 'revoke') {
+        if ($action === 'renew') {
+            $requirePlatformPermission('subscriptions.renew');
+            $clinicId = (int) ($_POST['clinic_id'] ?? 0);
+            $amountRaw = str_replace([' ', ','], ['', '.'], trim((string) ($_POST['amount'] ?? '')));
+            $amount = $amountRaw === '' ? null : (float) $amountRaw;
+            $result = $subscriptionRepository->renew(
+                $clinicId,
+                (int) ($_POST['months'] ?? 0),
+                $amount,
+                (string) ($_POST['payment_method'] ?? 'cash'),
+                trim((string) ($_POST['note'] ?? '')),
+                (int) $platformAdmin['id'],
+                $platformToday
+            );
+            $platformAuditRepository->log(
+                (int) $platformAdmin['id'],
+                'SUBSCRIPTION_RENEWED',
+                ['clinic_id' => $clinicId, 'months' => (int) ($_POST['months'] ?? 0), 'amount' => $amount] + $result
+            );
+            $message = 'Abonnement renouvelé jusqu’au ' . markiFormatFrenchDate($result['ends_on']) . '.';
+            $messageType = 'success';
+        } elseif ($action === 'clinic_set_end') {
+            $requirePlatformPermission('subscriptions.manage');
+            $clinicId = (int) ($_POST['clinic_id'] ?? 0);
+            $endsOn = trim((string) ($_POST['ends_on'] ?? ''));
+            if ($endsOn !== '' && DateTimeImmutable::createFromFormat('!Y-m-d', $endsOn) === false) {
+                throw new InvalidArgumentException('Date de fin invalide.');
+            }
+            $subscriptionRepository->setEndDate($clinicId, $endsOn !== '' ? $endsOn : null);
+            $platformAuditRepository->log(
+                (int) $platformAdmin['id'],
+                'SUBSCRIPTION_END_DATE_SET',
+                ['clinic_id' => $clinicId, 'ends_on' => $endsOn !== '' ? $endsOn : null]
+            );
+            $message = $endsOn !== ''
+                ? 'Date de fin fixée au ' . markiFormatFrenchDate($endsOn) . '.'
+                : 'Date de fin retirée : cette structure n’est plus soumise à abonnement.';
+            $messageType = 'success';
+        } elseif ($action === 'clinic_toggle_status') {
+            $requirePlatformPermission('clinics.suspend');
+            $clinicId = (int) ($_POST['clinic_id'] ?? 0);
+            $activate = (string) ($_POST['status'] ?? '') === 'active';
+            $subscriptionRepository->setStatus($clinicId, $activate);
+            $platformAuditRepository->log(
+                (int) $platformAdmin['id'],
+                $activate ? 'CLINIC_REACTIVATED' : 'CLINIC_SUSPENDED',
+                ['clinic_id' => $clinicId]
+            );
+            $message = $activate ? 'Structure réactivée.' : 'Structure suspendue : plus de connexion ni de QR.';
+            $messageType = 'success';
+        } elseif ($action === 'feedback_status') {
+            $requirePlatformPermission('feedback');
+            $feedbackRepository->setStatus(
+                (int) ($_POST['feedback_id'] ?? 0),
+                (string) ($_POST['status'] ?? '')
+            );
+            $message = 'Avis mis à jour.';
+            $messageType = 'success';
+        } elseif ($action === 'agent_create') {
+            $requirePlatformPermission('agents');
+            $agentName = trim((string) ($_POST['full_name'] ?? ''));
+            $agentEmail = trim((string) ($_POST['email'] ?? ''));
+            $agentPassword = (string) ($_POST['password'] ?? '');
+            $minimum = max(10, (int) ($config['auth']['password_min_length'] ?? 12));
+
+            if ($agentName === '') {
+                $fieldErrors['agent_full_name'] = 'Le nom est obligatoire.';
+            }
+            if (filter_var($agentEmail, FILTER_VALIDATE_EMAIL) === false) {
+                $fieldErrors['agent_email'] = 'Adresse e-mail invalide.';
+            }
+            if (
+                mb_strlen($agentPassword, 'UTF-8') < $minimum
+                || !preg_match('/[A-Z]/', $agentPassword)
+                || !preg_match('/[a-z]/', $agentPassword)
+                || !preg_match('/\d/', $agentPassword)
+            ) {
+                $fieldErrors['agent_password'] = sprintf(
+                    '%d caractères minimum, avec majuscule, minuscule et chiffre.',
+                    $minimum
+                );
+            }
+            if ($fieldErrors !== []) {
+                throw new InvalidArgumentException('Vérifiez le formulaire de l’agent.');
+            }
+
+            $agentId = $platformAuditRepository->createAgent(
+                $agentEmail,
+                password_hash($agentPassword, PASSWORD_DEFAULT),
+                $agentName
+            );
+            $platformAuditRepository->log(
+                (int) $platformAdmin['id'],
+                'PLATFORM_AGENT_CREATED',
+                ['agent_id' => $agentId, 'email' => mb_strtolower($agentEmail, 'UTF-8')]
+            );
+            $message = 'Agent créé. Transmettez-lui son adresse et son mot de passe : il se connecte sur cette même page.';
+            $messageType = 'success';
+        } elseif ($action === 'agent_toggle') {
+            $requirePlatformPermission('agents');
+            $agentId = (int) ($_POST['agent_id'] ?? 0);
+            $activate = (string) ($_POST['status'] ?? '') === 'active';
+            $platformAuditRepository->setAgentStatus($agentId, $activate);
+            $platformAuditRepository->log(
+                (int) $platformAdmin['id'],
+                $activate ? 'PLATFORM_AGENT_REACTIVATED' : 'PLATFORM_AGENT_DISABLED',
+                ['agent_id' => $agentId]
+            );
+            $message = $activate ? 'Agent réactivé.' : 'Agent désactivé : il est déconnecté.';
+            $messageType = 'success';
+        } elseif ($action === 'revoke') {
+            $requirePlatformPermission('invitations');
             $invitationId = (int) ($_POST['invitation_id'] ?? 0);
             $repository->revokeInvitation($invitationId);
             $platformAuditRepository->log(
@@ -192,6 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'Invitation révoquée.';
             $messageType = 'success';
         } else {
+            $requirePlatformPermission('invitations');
             $invitation = $repository->createInvitation(
                 $_POST['recipient_label'] ?? null,
                 $_POST['recipient_email'] ?? null,
@@ -223,7 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = $exception->getMessage();
         $messageType = 'error';
         $fieldErrors = $exception->errors();
-    } catch (AuthException $exception) {
+    } catch (AuthException | InvalidArgumentException $exception) {
         $message = $exception->getMessage();
         $messageType = 'error';
     } catch (Throwable $exception) {
@@ -259,19 +407,25 @@ $defaultExpiry = (int) (
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="assets/icons/marki-app-192.png" type="image/png">
-    <title>Invitations de structure — MARKI</title>
+    <title>Administration — MARKI</title>
     <link rel="stylesheet" href="assets/css/auth.css?v=20260731-setup1">
     <link rel="stylesheet" href="assets/css/platform-setup.css?v=20260802-platform4">
     <link rel="stylesheet" href="assets/css/desktop-density.css?v=20260803-final2">
     <link rel="stylesheet" href="assets/design-system/marki-theme.css?v=20260803-design-ready1">
+    <link rel="stylesheet" href="assets/css/platform-admin.css?v=20261026-p5b">
 </head>
 <body class="platform-page">
     <main class="platform-shell">
         <header class="platform-header">
             <div>
-                <p class="platform-eyebrow">Administration interne MARKI — V1</p>
-                <h1>Invitations de nouvelle structure</h1>
-                <p>Générez un lien unique pour le médecin responsable d’un cabinet ou d’une clinique.</p>
+                <p class="platform-eyebrow">Administration interne MARKI</p>
+                <h1><?= platformE($platformTabs[$tab]['label'] ?? 'Administration') ?></h1>
+                <p><?= platformE([
+                    'invitations' => 'Générez un lien unique pour le médecin responsable d’un cabinet ou d’une clinique.',
+                    'clinics' => 'Suivez les abonnements des structures et enregistrez les renouvellements.',
+                    'feedback' => 'Les messages envoyés par les médecins avec le bouton « Donner mon avis ».',
+                    'agents' => 'Les personnes qui travaillent avec MARKI : créer une structure et renouveler un abonnement.',
+                ][$tab] ?? '') ?></p>
             </div>
 
             <div class="platform-header-actions">
@@ -286,7 +440,7 @@ $defaultExpiry = (int) (
                 </a>
                 <div class="platform-admin-identity" aria-label="Compte administrateur connecté">
                     <strong><?= platformE((string) $platformAdmin['full_name']) ?></strong>
-                    <small><?= platformE((string) $platformAdmin['email']) ?></small>
+                    <small><?= platformE((string) $platformAdmin['email']) ?> · <?= ($platformAdmin['role'] ?? 'owner') === 'agent' ? 'Agent' : 'Propriétaire' ?></small>
                 </div>
                 <form method="post">
                     <input type="hidden" name="csrf_token" value="<?= platformE($csrfToken) ?>">
@@ -296,11 +450,35 @@ $defaultExpiry = (int) (
             </div>
         </header>
 
+        <?php $newFeedbackCount = isset($platformTabs['feedback']) ? $feedbackRepository->countNew() : 0; ?>
+        <nav class="platform-tabs" aria-label="Sections de l’administration">
+            <?php foreach ($platformTabs as $tabKey => $tabInfo): ?>
+                <a
+                    href="?tab=<?= platformE($tabKey) ?>"
+                    class="platform-tab<?= $tabKey === $tab ? ' is-active' : '' ?>"
+                    <?= $tabKey === $tab ? 'aria-current="page"' : '' ?>
+                >
+                    <?= platformE($tabInfo['label']) ?>
+                    <?php if ($tabKey === 'feedback' && $newFeedbackCount > 0): ?>
+                        <span class="platform-tab__badge"><?= $newFeedbackCount ?></span>
+                    <?php endif; ?>
+                </a>
+            <?php endforeach; ?>
+        </nav>
+
         <?php if ($message !== ''): ?>
             <div class="platform-message is-<?= platformE($messageType) ?>" role="status">
                 <?= platformE($message) ?>
             </div>
         <?php endif; ?>
+
+        <?php if ($tab === 'clinics'): ?>
+            <?php require __DIR__ . '/../app/platform/views/clinics.php'; ?>
+        <?php elseif ($tab === 'feedback'): ?>
+            <?php require __DIR__ . '/../app/platform/views/feedback.php'; ?>
+        <?php elseif ($tab === 'agents'): ?>
+            <?php require __DIR__ . '/../app/platform/views/agents.php'; ?>
+        <?php else: ?>
 
         <?php if ($generatedLink !== ''): ?>
             <section class="platform-card platform-link-card" aria-labelledby="generated-link-title">
@@ -451,6 +629,7 @@ $defaultExpiry = (int) (
                 </table>
             </div>
         </section>
+        <?php endif; ?>
     </main>
 
     <script nonce="<?= platformE($public['csp_nonce']) ?>">

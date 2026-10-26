@@ -12,6 +12,8 @@
 -- temporaire@marki.test / Temporaire1! (changement obligatoire)
 -- Code de structure : clinique-el-amal
 -- Administration MARKI : platform@marki.test / MarkiAdmin2026!
+-- Agent MARKI (renouveler, créer une structure) : agent@marki.test / AgentMarki2026!
+-- Nécessite la migration 2026_10_26_subscriptions_feedback_agents.sql.
 -- ============================================================================
 
 USE `markii_db`;
@@ -155,6 +157,8 @@ CALL marki_assert_latest_demo_schema();
 DROP PROCEDURE marki_assert_latest_demo_schema;
 
 SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE app_feedback;
+TRUNCATE TABLE clinic_subscriptions;
 TRUNCATE TABLE platform_admin_activity_logs;
 TRUNCATE TABLE platform_admin_sessions;
 TRUNCATE TABLE platform_admins;
@@ -227,6 +231,28 @@ INSERT INTO platform_admins (
     'platform@marki.test',
     '$2y$12$taYOGaBOlzZUE4bgzH8FLubMMFj2fv/kbumEcWcPyOEsDcbv3EgjC',
     'Administrateur MARKI',
+    'active',
+    0,
+    NULL,
+    NULL,
+    NOW(),
+    NOW(),
+    NOW()
+);
+
+-- Compte agent de test (droits limités : renouveler un abonnement, créer une structure).
+-- Courriel : agent@marki.test
+-- Mot de passe : AgentMarki2026!
+INSERT INTO platform_admins (
+    id, email, password_hash, full_name, role, status,
+    failed_login_attempts, locked_until, last_login_at,
+    password_changed_at, created_at, updated_at
+) VALUES (
+    2,
+    'agent@marki.test',
+    '$2y$12$Gxz2IZoeY2RmuDpDqZELYuNMjsZL5BMhf7jYuwbiPMXHt4G05370C',
+    'Agent Alger (test)',
+    'agent',
     'active',
     0,
     NULL,

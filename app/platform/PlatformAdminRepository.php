@@ -25,7 +25,7 @@ final class PlatformAdminRepository
     public function findActiveById(int $adminId): ?array
     {
         $stmt = $this->pdo->prepare(
-            "SELECT id, email, full_name, status, last_login_at, password_changed_at
+            "SELECT id, email, full_name, role, status, last_login_at, password_changed_at
              FROM platform_admins
              WHERE id = :id AND status = 'active'
              LIMIT 1"
@@ -225,6 +225,73 @@ final class PlatformAdminRepository
         }
 
         return (int) $admin['id'];
+    }
+
+    /**
+     * Comptes de l'administration MARKI (propriétaires et agents).
+     */
+    public function listAdmins(): array
+    {
+        return $this->pdo->query(
+            "SELECT id, email, full_name, role, status, last_login_at, created_at
+             FROM platform_admins
+             ORDER BY role = 'owner' DESC, full_name ASC"
+        )->fetchAll();
+    }
+
+    /**
+     * Crée un compte agent. Refuse une adresse déjà utilisée.
+     */
+    public function createAgent(string $email, string $passwordHash, string $fullName): int
+    {
+        $email = mb_strtolower(trim($email), 'UTF-8');
+
+        if ($this->findByEmail($email) !== null) {
+            throw new InvalidArgumentException('Cette adresse est déjà utilisée par un compte MARKI.');
+        }
+
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO platform_admins (
+                email, password_hash, full_name, role, status,
+                failed_login_attempts, locked_until, password_changed_at,
+                created_at, updated_at
+             ) VALUES (
+                :email, :password_hash, :full_name, 'agent', 'active',
+                0, NULL, NOW(), NOW(), NOW()
+             )"
+        );
+        $stmt->execute([
+            ':email' => $email,
+            ':password_hash' => $passwordHash,
+            ':full_name' => trim($fullName),
+        ]);
+
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    /**
+     * Active ou désactive un agent (jamais un propriétaire).
+     */
+    public function setAgentStatus(int $adminId, bool $active): void
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE platform_admins
+             SET status = :status, updated_at = NOW()
+             WHERE id = :id AND role = 'agent'
+             LIMIT 1"
+        );
+        $stmt->execute([
+            ':status' => $active ? 'active' : 'disabled',
+            ':id' => $adminId,
+        ]);
+
+        if (!$active) {
+            $this->pdo->prepare(
+                "UPDATE platform_admin_sessions
+                 SET revoked_at = NOW()
+                 WHERE platform_admin_id = :id AND revoked_at IS NULL"
+            )->execute([':id' => $adminId]);
+        }
     }
 
     public function log(
