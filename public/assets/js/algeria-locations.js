@@ -274,7 +274,9 @@
   }
 
   async function fillCommunes(wilayaSelect, cityInput, datalist, group) {
-    if (!wilayaSelect || !cityInput || !datalist) {
+    group = group || wilayaSelect?.closest('[data-algeria-location-group]');
+
+    if (!wilayaSelect || !cityInput || !datalist || !group) {
       return;
     }
 

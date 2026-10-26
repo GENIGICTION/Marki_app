@@ -255,6 +255,7 @@ final class PublicRegistrationRepository
                 public_session_duration_minutes,
                 queue_notifications_enabled,
                 max_public_registrations_per_day,
+                advance_registration_days,
                 created_at,
                 updated_at
             FROM doctor_public_registration_settings
@@ -298,6 +299,8 @@ final class PublicRegistrationRepository
                 $row['max_public_registrations_per_day'] !== null
                     ? (int) $row['max_public_registrations_per_day']
                     : null,
+            'advance_registration_days' =>
+                (int) $row['advance_registration_days'],
             'updated_at' => $row['updated_at'],
         ];
     }
@@ -348,6 +351,7 @@ final class PublicRegistrationRepository
                     public_sessions_enabled = :public_sessions_enabled,
                     public_session_duration_minutes = :session_duration,
                     max_public_registrations_per_day = :max_registrations,
+                    advance_registration_days = :advance_days,
                     updated_at = NOW()
                 WHERE clinic_id = :clinic_id
                   AND doctor_id = :doctor_id
@@ -363,6 +367,8 @@ final class PublicRegistrationRepository
                     (int) $settings['public_session_duration_minutes'],
                 ':max_registrations' =>
                     $settings['max_public_registrations_per_day'],
+                ':advance_days' =>
+                    (int) ($settings['advance_registration_days'] ?? 0),
                 ':clinic_id' => $clinicId,
                 ':doctor_id' => $doctorId,
             ]);
@@ -618,6 +624,7 @@ final class PublicRegistrationRepository
                 c.phone AS clinic_phone,
                 c.timezone AS clinic_timezone,
                 c.status AS clinic_status,
+                c.subscription_ends_on AS clinic_subscription_ends_on,
                 dp.display_name AS doctor_name,
                 dp.specialty AS doctor_specialty,
                 dp.is_active AS doctor_is_active
@@ -739,7 +746,8 @@ final class PublicRegistrationRepository
     public function rateLimitCount(
         int $publicLinkId,
         string $ipHash,
-        int $minutes
+        int $minutes,
+        string $eventType = 'registration_attempt'
     ): int {
         $minutes = max(1, min(120, $minutes));
         $threshold = date(
@@ -751,11 +759,12 @@ final class PublicRegistrationRepository
             FROM public_link_events
             WHERE public_link_id = :public_link_id
               AND ip_hash = :ip_hash
-              AND event_type = 'registration_attempt'
+              AND event_type = :event_type
               AND created_at >= :threshold
         ";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
+            ':event_type' => $eventType,
             ':public_link_id' => $publicLinkId,
             ':ip_hash' => $ipHash,
             ':threshold' => $threshold,

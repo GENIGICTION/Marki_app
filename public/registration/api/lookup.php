@@ -1,0 +1,63 @@
+<?php
+
+declare(strict_types=1);
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+$public = require __DIR__ . '/../../../app/public_bootstrap.php';
+require_once __DIR__ . '/../../../app/public_registration/PublicRegistrationService.php';
+
+/*
+| « Déjà inscrit ? Suivez votre tour » : téléphone + nom → lien de suivi.
+*/
+try {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode([
+            'ok' => false,
+            'message' => 'Méthode non autorisée.',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    Auth::validateCsrf();
+    $input = json_decode((string) file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+
+    $result = (new PublicRegistrationService())->lookup($input, $public['config']);
+
+    $basePath = rtrim(
+        (string) ($public['config']['app']['base_path'] ?? ''),
+        '/'
+    );
+
+    echo json_encode([
+        'ok' => true,
+        'message' => 'Inscription retrouvée.',
+        'data' => [
+            'session_token' => (string) $result['session_token'],
+            'queue_date' => $result['queue_date'],
+            'status_path' => $basePath
+                . '/registration/status.php?session='
+                . rawurlencode((string) $result['session_token']),
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+} catch (PublicRegistrationException $exception) {
+    http_response_code($exception->httpStatus());
+    echo json_encode([
+        'ok' => false,
+        'message' => $exception->getMessage(),
+        'error_code' => $exception->errorCode(),
+        'errors' => $exception->errors(),
+    ], JSON_UNESCAPED_UNICODE);
+} catch (Throwable $exception) {
+    http_response_code(500);
+    echo json_encode([
+        'ok' => false,
+        'message' => 'Impossible de retrouver votre inscription.',
+        'error' => !empty($public['config']['app']['debug'])
+            ? $exception->getMessage()
+            : null,
+    ], JSON_UNESCAPED_UNICODE);
+}

@@ -37,7 +37,13 @@ try {
         ? null
         : (int) $maxRegistrationsRaw;
 
+    $advanceDays = (int) ($input['advance_registration_days'] ?? 0);
+
     $errors = [];
+    if ($advanceDays < 0 || $advanceDays > 14) {
+        $errors['advance_registration_days'] =
+            'Choisissez entre aujourd’hui seulement et 14 jours à l’avance.';
+    }
     if ($sessionDuration < 30 || $sessionDuration > 10080) {
         $errors['public_session_duration_minutes'] =
             'La durée doit être comprise entre 30 minutes et 7 jours.';
@@ -101,6 +107,7 @@ try {
             'birth_date_required' => $birthDateRequired,
             'public_session_duration_minutes' => $sessionDuration,
             'max_public_registrations_per_day' => $maxRegistrations,
+            'advance_registration_days' => $advanceDays,
         ],
         $messages
     );
@@ -114,6 +121,7 @@ try {
             'birth_date_required' => $birthDateRequired,
             'session_duration_minutes' => $sessionDuration,
             'max_public_registrations_per_day' => $maxRegistrations,
+            'advance_registration_days' => $advanceDays,
         ]
     );
 

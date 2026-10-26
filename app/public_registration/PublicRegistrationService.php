@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../helpers/PatientDataNormalizer.php';
 require_once __DIR__ . '/PublicRegistrationRepository.php';
+require_once __DIR__ . '/DoctorScheduleRepository.php';
+require_once __DIR__ . '/../subscription.php';
 
 final class PublicRegistrationException extends RuntimeException
 {
@@ -83,13 +85,26 @@ final class PublicRegistrationService
             (int) $link['doctor_id'],
             $today
         );
+        $dates = $this->registrationDates($link, $settings, $messages, $today);
+
+        // Disponibilité affichée : aujourd'hui si possible, sinon le
+        // premier jour ouvert parmi les jours proposés.
         $availability = $this->availability(
             $link,
             $settings,
             $messages,
             $queue,
+            $today,
             $today
         );
+        if (!$availability['can_register']) {
+            foreach ($dates as $date) {
+                if ($date['can_register']) {
+                    $availability['can_register'] = true;
+                    break;
+                }
+            }
+        }
 
         if ($logScan) {
             $ipHash = PublicRegistrationSecurity::clientIpHash($config);
@@ -125,12 +140,20 @@ final class PublicRegistrationService
                 'specialty' => $link['doctor_specialty'],
             ],
             'availability' => $availability,
+            'dates' => $dates,
+            'advance_registration_days' =>
+                (int) ($settings['advance_registration_days'] ?? 0),
             'requirements' => [
                 'phone_required' => true,
                 'birth_date_required' =>
                     (bool) $settings['birth_date_required'],
                 'privacy_consent_required' => true,
             ],
+            'schedule' => (new DoctorScheduleRepository($this->pdo))->publicSchedule(
+                (int) $link['clinic_id'],
+                (int) $link['doctor_id'],
+                $today
+            ),
             'today' => $today,
             'timezone' => $timezone,
         ];
@@ -190,8 +213,20 @@ final class PublicRegistrationService
             $payload['allow_shared_phone'] ?? false,
             FILTER_VALIDATE_BOOL
         );
+        $queueDate = trim((string) ($payload['queue_date'] ?? ''));
+        if ($queueDate === '') {
+            $queueDate = $today;
+        }
 
         $errors = [];
+        $parsedQueueDate = DateTimeImmutable::createFromFormat('!Y-m-d', $queueDate);
+        if (
+            $parsedQueueDate === false
+            || $parsedQueueDate->format('Y-m-d') !== $queueDate
+            || $queueDate < $today
+        ) {
+            $errors['queue_date'] = 'Choisissez un jour de passage valide.';
+        }
         if ($fullName === '') {
             $errors['full_name'] = 'Le nom complet est obligatoire.';
         } elseif (mb_strlen($fullName, 'UTF-8') > 191) {
@@ -258,16 +293,30 @@ final class PublicRegistrationService
                 (int) $link['clinic_id'],
                 (int) $link['doctor_id']
             );
+            $maxDate = (new DateTimeImmutable($today))
+                ->modify('+' . (int) $settings['advance_registration_days'] . ' days')
+                ->format('Y-m-d');
+
+            if ($queueDate > $maxDate) {
+                throw new PublicRegistrationException(
+                    'Les inscriptions ne sont pas encore ouvertes pour ce jour.',
+                    409,
+                    'DATE_NOT_ALLOWED',
+                    ['queue_date' => 'Choisissez un jour proposé dans la liste.']
+                );
+            }
+
             $queue = $this->findTodayQueueForUpdate(
                 (int) $link['clinic_id'],
                 (int) $link['doctor_id'],
-                $today
+                $queueDate
             );
             $availability = $this->availability(
                 $link,
                 $settings,
                 $messages,
                 $queue,
+                $queueDate,
                 $today
             );
 
@@ -279,11 +328,13 @@ final class PublicRegistrationService
                 );
             }
 
+            // Première inscription du jour : la liste est créée ici
+            // (inscriptions ouvertes, journée active).
             if ($queue === null) {
-                throw new PublicRegistrationException(
-                    'La liste du jour n’est pas encore ouverte.',
-                    409,
-                    'DAY_NOT_OPEN'
+                $queue = $this->createQueueForDateForUpdate(
+                    (int) $link['clinic_id'],
+                    (int) $link['doctor_id'],
+                    $queueDate
                 );
             }
 
@@ -448,7 +499,8 @@ final class PublicRegistrationService
                 $entryId,
                 $settings,
                 $ipHash,
-                $userAgent
+                $userAgent,
+                (string) $queue['queue_date']
             );
 
             $this->repository->logPublicEvent(
@@ -477,6 +529,7 @@ final class PublicRegistrationService
                     'id' => $entryId,
                     'position_number' => $positionNumber,
                     'status' => 'waiting',
+                    'queue_date' => (string) $queue['queue_date'],
                 ],
             ];
         } catch (Throwable $exception) {
@@ -499,6 +552,184 @@ final class PublicRegistrationService
 
             throw $exception;
         }
+    }
+
+    /**
+     * « Déjà inscrit ? Suivez votre tour. »
+     *
+     * Retrouve l'inscription en cours (aujourd'hui ou un jour à venir)
+     * chez le médecin du QR avec le téléphone et un mot du nom. Marche
+     * aussi pour un patient ajouté par le secrétariat. Ne révèle jamais
+     * si un numéro existe : une seule réponse « introuvable ».
+     */
+    public function lookup(array $payload, array $config): array
+    {
+        $publicId = trim((string) ($payload['link'] ?? ''));
+        $token = trim((string) ($payload['token'] ?? ''));
+        $link = $this->validatedLink($publicId, $token, $config);
+        $timezone = configureClinicTimezone(
+            $this->pdo,
+            (int) $link['clinic_id'],
+            (string) ($config['app']['timezone'] ?? 'UTC')
+        );
+        $today = (new DateTimeImmutable('now', new DateTimeZone($timezone)))
+            ->format('Y-m-d');
+        $ipHash = PublicRegistrationSecurity::clientIpHash($config);
+        $userAgent = PublicRegistrationSecurity::userAgent();
+
+        $limit = (int) ($config['qr']['rate_limit_attempts'] ?? 20);
+        $windowMinutes = (int) ($config['qr']['rate_limit_minutes'] ?? 15);
+        if ($this->repository->rateLimitCount(
+            (int) $link['id'],
+            $ipHash,
+            $windowMinutes,
+            'lookup_attempt'
+        ) >= $limit) {
+            throw new PublicRegistrationException(
+                'Trop de tentatives ont été effectuées. Réessayez dans quelques minutes.',
+                429,
+                'RATE_LIMITED'
+            );
+        }
+
+        $this->repository->logPublicEvent(
+            (int) $link['id'],
+            'lookup_attempt',
+            'started',
+            $ipHash,
+            $userAgent
+        );
+
+        $phone = PatientDataNormalizer::normalizePhone(
+            (string) ($payload['phone'] ?? '')
+        );
+        $nameWords = $this->nameWords((string) ($payload['name'] ?? ''));
+
+        $errors = [];
+        if ($phone === '' || !PatientDataNormalizer::isValidPhone($phone)) {
+            $errors['phone'] = PatientDataNormalizer::phoneValidationMessage();
+        }
+        if ($nameWords === []) {
+            $errors['name'] = 'Écrivez votre nom ou votre prénom.';
+        }
+        if ($errors !== []) {
+            throw new PublicRegistrationException(
+                'Vérifiez les informations saisies.',
+                422,
+                'VALIDATION_ERROR',
+                $errors
+            );
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT
+                qe.id,
+                qe.queue_id,
+                qe.display_name,
+                qe.status,
+                q.queue_date,
+                p.full_name AS patient_full_name
+             FROM queue_entries qe
+             INNER JOIN queues q
+                ON q.id = qe.queue_id
+             LEFT JOIN patients p
+                ON p.id = qe.patient_id
+               AND p.clinic_id = qe.clinic_id
+             WHERE qe.clinic_id = :clinic_id
+               AND q.doctor_id = :doctor_id
+               AND q.queue_date >= :today
+               AND qe.phone = :phone
+               AND qe.status IN ('waiting', 'called')
+             ORDER BY q.queue_date ASC, qe.position_number ASC
+             LIMIT 20"
+        );
+        $stmt->execute([
+            ':clinic_id' => (int) $link['clinic_id'],
+            ':doctor_id' => (int) $link['doctor_id'],
+            ':today' => $today,
+            ':phone' => $phone,
+        ]);
+
+        $entry = null;
+        foreach ($stmt->fetchAll() as $row) {
+            $knownWords = array_merge(
+                $this->nameWords((string) $row['display_name']),
+                $this->nameWords((string) ($row['patient_full_name'] ?? ''))
+            );
+            if (array_intersect($nameWords, $knownWords) !== []) {
+                $entry = $row;
+                break;
+            }
+        }
+
+        if ($entry === null) {
+            $this->repository->logPublicEvent(
+                (int) $link['id'],
+                'lookup_attempt',
+                'not_found',
+                $ipHash,
+                $userAgent
+            );
+
+            throw new PublicRegistrationException(
+                'Aucune inscription en cours n’a été trouvée avec ces informations. Vérifiez le numéro et le nom donnés au cabinet, ou inscrivez-vous.',
+                404,
+                'REGISTRATION_NOT_FOUND'
+            );
+        }
+
+        $this->repository->ensureDoctorConfiguration(
+            (int) $link['clinic_id'],
+            (int) $link['doctor_id']
+        );
+        $settings = $this->repository->settingsForDoctor(
+            (int) $link['clinic_id'],
+            (int) $link['doctor_id']
+        );
+
+        // Nouveau lien de suivi pour ce téléphone (l'ancien lien est remplacé).
+        $sessionToken = $this->createOrRotatePublicSession(
+            (int) $entry['id'],
+            $settings,
+            $ipHash,
+            $userAgent,
+            (string) $entry['queue_date']
+        );
+
+        $this->repository->logPublicEvent(
+            (int) $link['id'],
+            'lookup_attempt',
+            'found',
+            $ipHash,
+            $userAgent,
+            (int) $entry['queue_id'],
+            (int) $entry['id']
+        );
+
+        return [
+            'session_token' => $sessionToken,
+            'queue_date' => (string) $entry['queue_date'],
+        ];
+    }
+
+    /**
+     * Mots d'un nom, sans accents ni casse (« Benali Mohamed » → [benali, mohamed]).
+     * Les mots de moins de 2 lettres sont ignorés.
+     */
+    private function nameWords(string $name): array
+    {
+        $name = mb_strtolower(trim($name), 'UTF-8');
+        if (class_exists('Normalizer')) {
+            // « é » → « e » : on retire les accents après décomposition.
+            $decomposed = Normalizer::normalize($name, Normalizer::FORM_D);
+            $name = preg_replace('/\p{Mn}+/u', '', $decomposed !== false ? $decomposed : $name) ?? $name;
+        }
+        $words = preg_split('/[^\p{L}\p{N}]+/u', $name) ?: [];
+
+        return array_values(array_unique(array_filter(
+            $words,
+            static fn(string $word): bool => mb_strlen($word, 'UTF-8') >= 2
+        )));
     }
 
     public function status(string $sessionToken, array $config): array
@@ -524,11 +755,13 @@ final class PublicRegistrationService
             );
         }
 
-        configureClinicTimezone(
+        $timezone = configureClinicTimezone(
             $this->pdo,
             (int) $session['clinic_id'],
             (string) ($config['app']['timezone'] ?? 'UTC')
         );
+        $today = (new DateTimeImmutable('now', new DateTimeZone($timezone)))
+            ->format('Y-m-d');
 
         if (
             $session['revoked_at'] !== null
@@ -596,6 +829,7 @@ final class PublicRegistrationService
                 'day_status' => (string) $session['day_status'],
             ],
             'expires_at' => (string) $session['expires_at'],
+            'today' => $today,
         ];
     }
 
@@ -781,39 +1015,64 @@ final class PublicRegistrationService
         return $lockedLink;
     }
 
+    /**
+     * Peut-on s'inscrire avec le QR pour $date ?
+     *
+     * La liste d'une date est créée automatiquement à la première
+     * inscription (dès minuit pour aujourd'hui) : l'absence de liste ne
+     * bloque donc plus. Un jour fermé dans les horaires (date marquée
+     * « Fermé », ou jour non travaillé de la semaine) bloque.
+     */
     private function availability(
         array $link,
         array $settings,
         array $messages,
         ?array $queue,
-        string $today
+        string $date,
+        string $today,
+        ?array $dayStatus = null
     ): array {
         $code = 'registration_open';
         $canRegister = true;
+        $isToday = $date === $today;
+        $dayStatus ??= (new DoctorScheduleRepository($this->pdo))->dayStatuses(
+            (int) $link['clinic_id'],
+            (int) $link['doctor_id'],
+            $date,
+            0
+        )[$date];
+
+        // Abonnement expiré (délai de grâce dépassé) : le QR est coupé.
+        $subscriptionBlocked = markiSubscriptionState(
+            $link['clinic_subscription_ends_on'] ?? null,
+            $today
+        )['blocked'];
 
         if (
             (int) $link['is_active'] !== 1
             || (int) $link['doctor_is_active'] !== 1
             || (string) $link['clinic_status'] !== 'active'
+            || $subscriptionBlocked
             || !(bool) $settings['public_registration_enabled']
             || !(bool) $settings['guest_registration_enabled']
         ) {
             $code = 'qr_disabled';
             $canRegister = false;
-        } elseif ($queue === null) {
-            $code = 'day_not_open';
+        } elseif (($dayStatus['status'] ?? '') === 'closed') {
+            $code = 'day_closed';
             $canRegister = false;
-        } elseif ((string) $queue['day_status'] === 'completed') {
+        } elseif ($queue !== null && (string) $queue['day_status'] === 'completed') {
             $code = 'day_completed';
             $canRegister = false;
-        } elseif ((string) $queue['day_status'] === 'paused') {
+        } elseif ($queue !== null && (string) $queue['day_status'] === 'paused') {
             $code = 'queue_paused';
             $canRegister = false;
-        } elseif ((string) $queue['registration_status'] !== 'open') {
+        } elseif ($queue !== null && (string) $queue['registration_status'] !== 'open') {
             $code = 'registration_closed';
             $canRegister = false;
         } elseif (
-            (bool) $settings['automatic_schedule_enabled']
+            $isToday
+            && (bool) $settings['automatic_schedule_enabled']
             && !$this->isWithinAutomaticSchedule(
                 (int) $link['clinic_id'],
                 (int) $link['doctor_id'],
@@ -825,8 +1084,6 @@ final class PublicRegistrationService
         }
 
         $fallbacks = [
-            'day_not_open' =>
-                'La liste du jour n’est pas encore ouverte. Veuillez revenir plus tard ou contacter le cabinet.',
             'registration_open' =>
                 'Les inscriptions sont ouvertes. Vous pouvez rejoindre la liste d’attente.',
             'registration_closed' =>
@@ -839,14 +1096,21 @@ final class PublicRegistrationService
                 'L’inscription par QR code est temporairement indisponible.',
             'outside_schedule' =>
                 'Les inscriptions en ligne ne sont pas disponibles à cette heure.',
+            // La note éventuelle du médecin est affichée dans le bloc horaires.
+            'day_closed' => $isToday
+                ? 'Le cabinet est fermé aujourd’hui. Consultez les prochains jours d’ouverture ci-dessous.'
+                : 'Le cabinet est fermé ce jour-là.',
         ];
+
+        // Les messages personnalisés par le médecin parlent de la journée en cours.
+        $message = $isToday || in_array($code, ['qr_disabled', 'registration_open'], true)
+            ? ($messages[$code] ?? $fallbacks[$code] ?? null)
+            : ($fallbacks[$code] ?? null);
 
         return [
             'can_register' => $canRegister,
             'code' => $code,
-            'message' => $messages[$code]
-                ?? $fallbacks[$code]
-                ?? 'L’inscription en ligne n’est pas disponible.',
+            'message' => $message ?? 'L’inscription en ligne n’est pas disponible.',
             'queue' => $queue !== null
                 ? [
                     'id' => (int) $queue['id'],
@@ -856,6 +1120,56 @@ final class PublicRegistrationService
                 ]
                 : null,
         ];
+    }
+
+    /**
+     * Jours proposés au patient : aujourd'hui + N jours (réglage du médecin).
+     */
+    private function registrationDates(
+        array $link,
+        array $settings,
+        array $messages,
+        string $today
+    ): array {
+        $advanceDays = max(0, min(14, (int) ($settings['advance_registration_days'] ?? 0)));
+        $statuses = (new DoctorScheduleRepository($this->pdo))->dayStatuses(
+            (int) $link['clinic_id'],
+            (int) $link['doctor_id'],
+            $today,
+            $advanceDays
+        );
+        $tomorrow = (new DateTimeImmutable($today))->modify('+1 day')->format('Y-m-d');
+
+        $dates = [];
+        foreach ($statuses as $date => $dayStatus) {
+            $queue = $this->findTodayQueue(
+                (int) $link['clinic_id'],
+                (int) $link['doctor_id'],
+                $date
+            );
+            $availability = $this->availability(
+                $link,
+                $settings,
+                $messages,
+                $queue,
+                $date,
+                $today,
+                $dayStatus
+            );
+
+            $dates[] = [
+                'date' => $date,
+                'label' => $dayStatus['label'],
+                'relative' => $date === $today
+                    ? 'Aujourd’hui'
+                    : ($date === $tomorrow ? 'Demain' : null),
+                'can_register' => $availability['can_register'],
+                'code' => $availability['code'],
+                'message' => $availability['message'],
+            ];
+        }
+
+        return $dates;
     }
 
     private function findTodayQueue(
@@ -925,6 +1239,38 @@ final class PublicRegistrationService
         return $row ?: null;
     }
 
+    private function createQueueForDateForUpdate(
+        int $clinicId,
+        int $doctorId,
+        string $queueDate
+    ): array {
+        // INSERT IGNORE : deux inscriptions simultanées ne créent qu'une liste
+        // (clé unique doctor_id + queue_date).
+        $stmt = $this->pdo->prepare(
+            "INSERT IGNORE INTO queues (
+                clinic_id, doctor_id, queue_date,
+                registration_status, day_status, status,
+                opened_at, opened_by_user_id, created_at, updated_at
+             ) VALUES (
+                :clinic_id, :doctor_id, :queue_date,
+                'open', 'active', 'open',
+                NOW(), NULL, NOW(), NOW()
+             )"
+        );
+        $stmt->execute([
+            ':clinic_id' => $clinicId,
+            ':doctor_id' => $doctorId,
+            ':queue_date' => $queueDate,
+        ]);
+
+        $queue = $this->findTodayQueueForUpdate($clinicId, $doctorId, $queueDate);
+        if ($queue === null) {
+            throw new RuntimeException('Impossible de créer la liste de ce jour.');
+        }
+
+        return $queue;
+    }
+
     private function settingsForDoctorForUpdate(
         int $clinicId,
         int $doctorId
@@ -940,7 +1286,8 @@ final class PublicRegistrationService
                 public_sessions_enabled,
                 public_session_duration_minutes,
                 queue_notifications_enabled,
-                max_public_registrations_per_day
+                max_public_registrations_per_day,
+                advance_registration_days
             FROM doctor_public_registration_settings
             WHERE clinic_id = :clinic_id
               AND doctor_id = :doctor_id
@@ -982,6 +1329,8 @@ final class PublicRegistrationService
                 $row['max_public_registrations_per_day'] !== null
                     ? (int) $row['max_public_registrations_per_day']
                     : null,
+            'advance_registration_days' =>
+                (int) $row['advance_registration_days'],
         ];
     }
 
@@ -1009,7 +1358,7 @@ final class PublicRegistrationService
 
         if ($total >= $limit) {
             throw new PublicRegistrationException(
-                'Le nombre maximal d’inscriptions en ligne est atteint pour aujourd’hui.',
+                'Le nombre maximal d’inscriptions en ligne est atteint pour ce jour.',
                 409,
                 'PUBLIC_DAILY_LIMIT_REACHED'
             );
@@ -1167,7 +1516,8 @@ final class PublicRegistrationService
             (int) $entry['id'],
             $settings,
             $ipHash,
-            $userAgent
+            $userAgent,
+            (string) $queue['queue_date']
         );
 
         $resultCode = $rejoined
@@ -1198,7 +1548,7 @@ final class PublicRegistrationService
         } elseif ($status === 'done') {
             $message = 'Votre passage est déjà enregistré comme terminé aujourd’hui.';
         } else {
-            $message = 'Une inscription existe déjà pour aujourd’hui. Vous pouvez consulter son état.';
+            $message = 'Une inscription existe déjà pour ce jour. Vous pouvez consulter son état.';
         }
 
         return [
@@ -1458,7 +1808,8 @@ final class PublicRegistrationService
         int $entryId,
         array $settings,
         string $ipHash,
-        string $userAgent
+        string $userAgent,
+        ?string $queueDate = null
     ): string {
         $rawToken = bin2hex(random_bytes(32));
         $tokenHash = PublicRegistrationSecurity::tokenHash($rawToken);
@@ -1469,10 +1820,15 @@ final class PublicRegistrationService
                 (int) ($settings['public_session_duration_minutes'] ?? 720)
             )
         );
-        $expiresAt = date(
-            'Y-m-d H:i:s',
-            time() + ($durationMinutes * 60)
-        );
+        // Une inscription pour un jour futur reste suivable jusqu'à la fin de ce jour.
+        $expiresAtTimestamp = time() + ($durationMinutes * 60);
+        if ($queueDate !== null) {
+            $endOfQueueDay = strtotime($queueDate . ' 23:59:59');
+            if ($endOfQueueDay !== false) {
+                $expiresAtTimestamp = max($expiresAtTimestamp, $endOfQueueDay);
+            }
+        }
+        $expiresAt = date('Y-m-d H:i:s', $expiresAtTimestamp);
 
         $sql = "
             INSERT INTO patient_public_sessions (
@@ -1556,7 +1912,18 @@ final class PublicRegistrationService
                 qe.queue_id,
                 qe.clinic_id,
                 qe.patient_id,
-                qe.public_link_id,
+                -- Patient ajouté par le secrétariat : pas de lien QR propre,
+                -- on rattache le suivi au QR du médecin pour les journaux.
+                COALESCE(
+                    qe.public_link_id,
+                    (
+                        SELECT pl.id
+                        FROM public_links pl
+                        WHERE pl.doctor_id = q.doctor_id
+                        ORDER BY pl.id DESC
+                        LIMIT 1
+                    )
+                ) AS public_link_id,
                 qe.display_name,
                 qe.phone,
                 qe.position_number,
@@ -1625,79 +1992,12 @@ final class PublicRegistrationService
         int $doctorId,
         string $today
     ): bool {
-        $now = new DateTimeImmutable('now');
-        $dayOfWeek = (int) $now->format('N');
-        $currentTime = $now->format('H:i:s');
-
-        $exceptionSql = "
-            SELECT
-                mode,
-                registration_open_time,
-                registration_close_time,
-                public_message_override
-            FROM doctor_public_registration_exceptions
-            WHERE clinic_id = :clinic_id
-              AND doctor_id = :doctor_id
-              AND exception_date = :exception_date
-              AND is_active = 1
-            ORDER BY slot_order ASC
-        ";
-        $exceptionStmt = $this->pdo->prepare($exceptionSql);
-        $exceptionStmt->execute([
-            ':clinic_id' => $clinicId,
-            ':doctor_id' => $doctorId,
-            ':exception_date' => $today,
-        ]);
-        $exceptions = $exceptionStmt->fetchAll();
-
-        if ($exceptions !== []) {
-            foreach ($exceptions as $exception) {
-                $mode = strtolower((string) $exception['mode']);
-                if (in_array($mode, ['closed', 'unavailable'], true)) {
-                    continue;
-                }
-
-                if (
-                    $exception['registration_open_time'] !== null
-                    && $exception['registration_close_time'] !== null
-                    && $currentTime >= $exception['registration_open_time']
-                    && $currentTime <= $exception['registration_close_time']
-                ) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        $hoursSql = "
-            SELECT
-                registration_open_time,
-                registration_close_time
-            FROM doctor_public_registration_hours
-            WHERE clinic_id = :clinic_id
-              AND doctor_id = :doctor_id
-              AND day_of_week = :day_of_week
-              AND is_active = 1
-            ORDER BY slot_order ASC
-        ";
-        $hoursStmt = $this->pdo->prepare($hoursSql);
-        $hoursStmt->execute([
-            ':clinic_id' => $clinicId,
-            ':doctor_id' => $doctorId,
-            ':day_of_week' => $dayOfWeek,
-        ]);
-
-        foreach ($hoursStmt->fetchAll() as $slot) {
-            if (
-                $currentTime >= $slot['registration_open_time']
-                && $currentTime <= $slot['registration_close_time']
-            ) {
-                return true;
-            }
-        }
-
-        return false;
+        return (new DoctorScheduleRepository($this->pdo))->isOpenAt(
+            $clinicId,
+            $doctorId,
+            $today,
+            (new DateTimeImmutable('now'))->format('H:i')
+        );
     }
 
     private function isValidBirthDate(

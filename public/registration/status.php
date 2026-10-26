@@ -29,7 +29,7 @@ $basePath = rtrim((string) ($public['config']['app']['base_path'] ?? ''), '/');
 
     <link rel="stylesheet" href="../assets/design-system/marki-theme.css?v=20261007-wait1">
     <link rel="stylesheet" href="assets/registration.css?v=20261007-wait1">
-    <script src="assets/status.js?v=20261007-wait1" defer></script>
+    <script src="assets/status.js?v=20261024-phase3" defer></script>
 </head>
 <body>
     <?php require __DIR__ . '/../../app/partials/icons_sprite.php'; ?>

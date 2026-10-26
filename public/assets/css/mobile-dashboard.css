@@ -1,0 +1,111 @@
+/* ==========================================================
+   Liste du jour — ajustements téléphone
+   Chargé en dernier. Boutons moins hauts mais texte lisible,
+   compteurs sur une seule ligne, état vide compact.
+   ========================================================== */
+
+@media (max-width: 768px) {
+  /* ---------- Boutons « Inscriptions ouvertes / Fermer » ---------- */
+
+  .day-list-page .day-list-page__top-actions .registration-status-badge,
+  .day-list-page .day-list-page__top-actions .btn-toggle-list {
+    min-height: 38px;
+    padding: 0 var(--mk-space-3);
+    font-size: 0.875rem;
+    font-weight: var(--mk-font-weight-semibold);
+    line-height: 1.2;
+    gap: var(--mk-space-2);
+  }
+
+  /* ---------- Compteurs : 4 sur une ligne ---------- */
+
+  .day-list-page .status-counters {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: var(--mk-space-2) !important;
+  }
+
+  .day-list-page .status-counters .counter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: var(--mk-space-2) var(--mk-space-1);
+    gap: 2px;
+    text-align: center;
+  }
+
+  .day-list-page .status-counters .counter__icon-box {
+    display: none;
+  }
+
+  .day-list-page .status-counters .counter__body {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 0;
+  }
+
+  .day-list-page .status-counters .counter__value {
+    font-size: 1.25rem;
+    line-height: 1.1;
+  }
+
+  .day-list-page .status-counters .counter__label {
+    font-size: 0.625rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  /* ---------- État vide « Aucun patient » : une bande fine ---------- */
+
+  .day-list-page .waiting-list tbody tr:has(.table-empty-state-cell) {
+    display: block;
+    width: 100%;
+  }
+
+  .day-list-page .waiting-list .table-empty-state-cell {
+    display: block !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: var(--mk-space-4) var(--mk-space-3) !important;
+    border: 0;
+  }
+
+  .day-list-page .waiting-list .table-empty-illustration {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--mk-space-3);
+    min-height: 0;
+    padding: 0;
+  }
+
+  .day-list-page .waiting-list .table-empty-icon-wrap {
+    width: auto;
+    height: auto;
+    margin: 0;
+  }
+
+  .day-list-page .waiting-list .table-empty-circle {
+    width: 40px;
+    height: 40px;
+  }
+
+  .day-list-page .waiting-list .table-empty-circle .mk-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .day-list-page .waiting-list .empty-sparkle {
+    display: none;
+  }
+
+  .day-list-page .waiting-list .table-empty-illustration strong {
+    flex: 0 1 auto;
+    margin: 0 !important;
+    font-size: 0.875rem;
+    text-align: left;
+  }
+}

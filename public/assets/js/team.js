@@ -342,7 +342,7 @@
     }
   }
 
-  function openForm(member = null) {
+  function openForm(member = null, newAccountType = 'secretary') {
     const modal = document.getElementById('team-account-modal');
     const form = document.getElementById('team-account-form');
     if (!modal || !form) return;
@@ -355,7 +355,7 @@
     setInput('team-full-name', member?.full_name || '');
     setInput('team-email', member?.email || '');
     setInput('team-phone', formatPhoneInput(member?.phone || ''));
-    setInput('team-account-type', member?.account_type || 'secretary');
+    setInput('team-account-type', member?.account_type || newAccountType);
     setInput('team-job-title', member?.job_title || '');
     setInput('team-specialty', member?.doctor_specialty || '');
     setInput('team-license-number', member?.doctor_license_number || '');
@@ -372,7 +372,11 @@
 
     const title = document.getElementById('team-form-title');
     if (title) {
-      title.textContent = member ? 'Modifier le compte' : 'Nouveau compte';
+      title.textContent = member
+        ? 'Modifier le compte'
+        : newAccountType === 'doctor'
+          ? 'Nouveau médecin'
+          : 'Nouveau compte secrétariat';
     }
 
     const passwordInput = document.getElementById('team-temporary-password');
@@ -569,7 +573,16 @@
       state.doctors = response.data?.doctors || [];
       renderTable();
       closeForm();
-      notify(response.message || 'Compte enregistré avec succès.', 'success');
+
+      // Le sélecteur de médecin de l'en-tête est rendu côté serveur :
+      // un nouveau médecin n'y apparaît qu'après rechargement.
+      const isNewDoctor = !payload.user_id && payload.account_type === 'doctor';
+      notify(
+        isNewDoctor
+          ? 'Médecin ajouté. Rechargez la page pour le choisir dans l’en-tête et préparer sa liste.'
+          : response.message || 'Compte enregistré avec succès.',
+        'success'
+      );
     } catch (error) {
       renderFieldErrors(error.fieldErrors || {});
 
@@ -692,8 +705,12 @@
     }
 
     document
-      .getElementById('team-new-account-button')
-      ?.addEventListener('click', () => openForm());
+      .querySelectorAll('[data-team-new-account]')
+      .forEach(button => {
+        button.addEventListener('click', () => {
+          openForm(null, button.dataset.teamNewAccount || 'secretary');
+        });
+      });
     document
       .getElementById('team-form-close-button')
       ?.addEventListener('click', closeForm);
@@ -731,7 +748,22 @@
       escapeHandlerBound = true;
     }
 
-    return loadTeam();
+    return loadTeam().then(openPendingAccountForm);
+  }
+
+  /*
+  | Le guide « Qui fait quoi ? » peut demander l'ouverture directe du
+  | formulaire (window.MARKI_PENDING_TEAM_ACTION = 'doctor' | 'secretary').
+  */
+  function openPendingAccountForm() {
+    const pendingType = window.MARKI_PENDING_TEAM_ACTION;
+    window.MARKI_PENDING_TEAM_ACTION = null;
+
+    if (!['doctor', 'secretary'].includes(pendingType)) return;
+
+    const section = document.getElementById('team-settings-section');
+    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openForm(null, pendingType);
   }
 
   window.initMarkiTeam = async function () {

@@ -149,8 +149,25 @@
     });
   }
 
-  function guidanceFor(registration) {
+  function futureDateLabel(isoDate) {
+    const [year, month, day] = String(isoDate).split('-').map(Number);
+    return new Intl.DateTimeFormat('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'UTC'
+    }).format(new Date(Date.UTC(year, month - 1, day)));
+  }
+
+  function isFutureRegistration(registration, today) {
+    return Boolean(today && registration.queue_date && registration.queue_date > today);
+  }
+
+  function guidanceFor(registration, today) {
     const status = registration.status;
+    if (status === 'waiting' && isFutureRegistration(registration, today)) {
+      return `Votre passage est prévu le ${futureDateLabel(registration.queue_date)}. Gardez cette page : votre position s’affichera ici ce jour-là.`;
+    }
     if (status === 'waiting') {
       const ahead = Number(registration.patients_ahead ?? 0);
       if (ahead === 1) {
@@ -204,7 +221,7 @@
         : 'avant votre tour';
     }
     if (elements.guidance) {
-      elements.guidance.textContent = guidanceFor(registration);
+      elements.guidance.textContent = guidanceFor(registration, data.today);
       elements.guidance.className = `public-registration-notice is-${registration.status || 'waiting'}`;
     }
     if (elements.clinicName) elements.clinicName.textContent = clinic.name || '—';
@@ -219,8 +236,12 @@
     }
     if (elements.cancel) elements.cancel.hidden = !registration.can_cancel;
 
-    if (elements.notifyCard) elements.notifyCard.hidden = registration.status !== 'waiting';
-    checkAlert(registration);
+    // Pas d'alerte « bientôt votre tour » pour un passage prévu un autre jour.
+    const isFuture = isFutureRegistration(registration, data.today);
+    if (elements.notifyCard) {
+      elements.notifyCard.hidden = registration.status !== 'waiting' || isFuture;
+    }
+    if (!isFuture) checkAlert(registration);
 
     if (['done', 'canceled', 'no_show'].includes(registration.status)) {
       clearSavedSessionForCurrentToken();

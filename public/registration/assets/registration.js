@@ -10,7 +10,12 @@
     csrf: document.querySelector('meta[name="csrf-token"]')?.content || '',
     allowSharedPhone: false,
     requirements: null,
-    submitting: false
+    submitting: false,
+    savedFuture: null,
+    lookingUp: false,
+    dates: [],
+    queueDate: '',
+    todayMessage: ''
   };
 
   const elements = {
@@ -128,6 +133,16 @@
       const activeStatuses = ['waiting', 'called'];
 
       if (activeStatuses.includes(status)) {
+        const queueDate = data.data?.registration?.queue_date || '';
+        const today = data.data?.today || '';
+
+        // Inscrit pour un autre jour : on laisse la page d'inscription
+        // ouverte (pour aujourd'hui par exemple) avec un lien vers le suivi.
+        if (queueDate && today && queueDate > today) {
+          state.savedFuture = { queueDate, path: saved.status_path };
+          return false;
+        }
+
         window.location.replace(saved.status_path);
         return true;
       }
@@ -220,10 +235,280 @@
     }
   }
 
+  function scheduleHours(day) {
+    if (!day || day.status === 'unknown') return '';
+    if (day.status === 'closed') return '';
+    return (day.slots || []).map(slot => `${slot.open} – ${slot.close}`).join(' · ');
+  }
+
+  function renderScheduleDay(element, day) {
+    if (!element || !day) return;
+
+    const status = element.querySelector('[data-schedule-status]');
+    const hours = element.querySelector('[data-schedule-hours]');
+    const labels = {
+      open: day.special_hours ? 'Horaires modifiés' : 'Ouvert',
+      closed: 'Fermé',
+      unknown: 'Non communiqué'
+    };
+
+    element.dataset.status = day.status;
+    status.textContent = labels[day.status] || '';
+    hours.textContent = scheduleHours(day);
+    hours.hidden = hours.textContent === '';
+  }
+
+  /*
+  | Bloc « horaires » : aujourd'hui, demain, notes datées, note permanente
+  | et horaires de la semaine. Masqué si le médecin n'a rien renseigné.
+  */
+  function renderSchedule(schedule) {
+    const section = document.getElementById('registration-schedule');
+    if (!section) return;
+
+    if (!schedule?.configured) {
+      section.hidden = true;
+      return;
+    }
+
+    const showDays = schedule.has_weekly_hours
+      || schedule.today?.status !== 'unknown'
+      || schedule.tomorrow?.status !== 'unknown';
+    section.querySelector('.public-schedule__days').hidden = !showDays;
+    renderScheduleDay(section.querySelector('[data-schedule-day="today"]'), schedule.today);
+    renderScheduleDay(section.querySelector('[data-schedule-day="tomorrow"]'), schedule.tomorrow);
+
+    const notes = [];
+    if (schedule.today?.note) notes.push({ when: 'Aujourd’hui', text: schedule.today.note, important: true });
+    if (schedule.tomorrow?.note) notes.push({ when: 'Demain', text: schedule.tomorrow.note });
+
+    (schedule.upcoming || []).forEach(day => {
+      const detail = day.status === 'closed'
+        ? 'Fermé'
+        : day.special_hours ? `Horaires : ${scheduleHours(day)}` : '';
+      const text = [detail, day.note].filter(Boolean).join('. ');
+      if (text) notes.push({ when: day.label, text });
+    });
+
+    if (schedule.general_note) notes.push({ when: '', text: schedule.general_note, general: true });
+
+    const list = document.getElementById('registration-schedule-notes');
+    list.replaceChildren(...notes.map(note => {
+      const item = document.createElement('li');
+      item.className = 'public-schedule__note'
+        + (note.important ? ' is-important' : '')
+        + (note.general ? ' is-general' : '');
+
+      if (note.when) {
+        const when = document.createElement('strong');
+        when.textContent = note.when;
+        item.append(when);
+      }
+      const text = document.createElement('span');
+      text.textContent = note.text;
+      item.append(text);
+      return item;
+    }));
+    document.getElementById('registration-schedule-notes-wrap').hidden = notes.length === 0;
+
+    const week = document.getElementById('registration-schedule-week');
+    const weekList = document.getElementById('registration-schedule-week-list');
+    week.hidden = !(schedule.weekly || []).length;
+    weekList.replaceChildren(...(schedule.weekly || []).flatMap(day => {
+      const term = document.createElement('dt');
+      term.textContent = day.label;
+      const value = document.createElement('dd');
+      value.textContent = day.slots.length
+        ? day.slots.map(slot => `${slot.open} – ${slot.close}`).join(' · ')
+        : 'Fermé';
+      value.classList.toggle('is-closed', day.slots.length === 0);
+      return [term, value];
+    }));
+
+    section.hidden = false;
+  }
+
+  const SHORT_MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.',
+    'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+  function shortDate(isoDate) {
+    const [, month, day] = isoDate.split('-').map(Number);
+    return `${day} ${SHORT_MONTHS[month - 1]}`;
+  }
+
+  function selectedDateInfo() {
+    return state.dates.find(date => date.date === state.queueDate) || null;
+  }
+
+  function updateOpenMessage() {
+    if (!elements.openMessage) return;
+
+    const selected = selectedDateInfo();
+    if (!selected || selected.date === state.dates[0]?.date) {
+      elements.openMessage.textContent = state.todayMessage;
+      return;
+    }
+
+    const when = selected.relative
+      ? `${selected.relative.toLowerCase()} (${selected.label})`
+      : selected.label;
+    elements.openMessage.textContent =
+      `Vous vous inscrivez pour ${when}. Votre numéro de passage sera valable ce jour-là.`;
+  }
+
+  /*
+  | Choix du jour de passage : affiché seulement si le médecin autorise
+  | l'inscription à l'avance. Les jours fermés sont visibles mais grisés.
+  */
+  function renderDates(dates = []) {
+    const field = document.getElementById('registration-date-field');
+    const container = document.getElementById('registration-date-options');
+    state.dates = dates;
+
+    const firstOpen = dates.find(date => date.can_register);
+    if (!state.dates.some(date => date.date === state.queueDate && date.can_register)) {
+      state.queueDate = firstOpen?.date || '';
+    }
+
+    if (!field || !container) return;
+
+    field.hidden = dates.length <= 1;
+    container.replaceChildren(...dates.map(date => {
+      const option = document.createElement('label');
+      option.className = 'public-date-option' + (date.can_register ? '' : ' is-disabled');
+
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'queue_date';
+      input.value = date.date;
+      input.disabled = !date.can_register;
+      input.checked = date.date === state.queueDate;
+      input.addEventListener('change', () => {
+        state.queueDate = date.date;
+        updateOpenMessage();
+        setMessage();
+      });
+
+      const main = document.createElement('strong');
+      main.textContent = date.relative || date.label.split(' ')[0];
+      const sub = document.createElement('small');
+      sub.textContent = date.can_register ? shortDate(date.date) : 'Fermé';
+
+      option.append(input, main, sub);
+      if (!date.can_register) option.title = date.message || 'Indisponible';
+      return option;
+    }));
+
+    updateOpenMessage();
+  }
+
+  /* =======================================================
+     « Déjà inscrit ? Suivez votre tour »
+     ======================================================= */
+
+  function longDate(isoDate) {
+    const [year, month, day] = String(isoDate).split('-').map(Number);
+    return new Intl.DateTimeFormat('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'UTC'
+    }).format(new Date(Date.UTC(year, month - 1, day)));
+  }
+
+  function renderLookup() {
+    const section = document.getElementById('registration-lookup');
+    if (!section) return;
+    section.hidden = false;
+
+    const saved = document.getElementById('registration-lookup-saved');
+    if (state.savedFuture && saved) {
+      document.getElementById('registration-lookup-saved-text').textContent =
+        `Vous êtes inscrit pour le ${longDate(state.savedFuture.queueDate)}.`;
+      document.getElementById('registration-lookup-saved-link').href = state.savedFuture.path;
+      saved.hidden = false;
+    }
+  }
+
+  function toggleLookup(open) {
+    const toggle = document.getElementById('registration-lookup-toggle');
+    const form = document.getElementById('registration-lookup-form');
+    if (!toggle || !form) return;
+
+    const shouldOpen = open ?? form.hidden;
+    form.hidden = !shouldOpen;
+    toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    if (shouldOpen) {
+      window.MarkiPhone?.bind(form);
+      document.getElementById('registration-lookup-phone')?.focus();
+    }
+  }
+
+  function setLookupMessage(text = '', type = '') {
+    const box = document.getElementById('registration-lookup-message');
+    if (!box) return;
+    box.textContent = text;
+    box.className = 'public-registration-message' + (text && type ? ` is-${type}` : '');
+  }
+
+  async function submitLookup(event) {
+    event.preventDefault();
+    if (state.lookingUp) return;
+
+    document.querySelectorAll('[data-lookup-error]').forEach(element => {
+      element.textContent = '';
+    });
+    setLookupMessage();
+
+    const phone = document.getElementById('registration-lookup-phone').value.trim();
+    const name = document.getElementById('registration-lookup-name').value.trim();
+    const button = document.getElementById('registration-lookup-submit');
+
+    state.lookingUp = true;
+    button.disabled = true;
+
+    try {
+      const response = await fetch('api/lookup.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': state.csrf
+        },
+        body: JSON.stringify({ link: state.link, token: state.token, phone, name })
+      });
+      const data = await readJson(response);
+
+      if (!response.ok || !data?.ok) {
+        Object.entries(data?.errors || {}).forEach(([field, message]) => {
+          const target = document.querySelector(`[data-lookup-error="${field}"]`);
+          if (target) target.textContent = message;
+        });
+        throw new Error(data?.message || 'Inscription introuvable.');
+      }
+
+      saveSession(data.data.session_token, data.data.status_path);
+      window.location.assign(data.data.status_path);
+    } catch (error) {
+      setLookupMessage(error.message, 'error');
+    } finally {
+      state.lookingUp = false;
+      button.disabled = false;
+    }
+  }
+
+  document.getElementById('registration-lookup-toggle')
+    ?.addEventListener('click', () => toggleLookup());
+  document.getElementById('registration-lookup-form')
+    ?.addEventListener('submit', submitLookup);
+
   function renderContext(data) {
     const clinic = data.clinic || {};
     const doctor = data.doctor || {};
     const availability = data.availability || {};
+
+    renderSchedule(data.schedule);
+    renderLookup();
 
     if (elements.introduction) {
       elements.introduction.textContent =
@@ -253,9 +538,15 @@
 
     setHidden(elements.unavailable, true);
     setHidden(elements.content, false);
-    if (elements.openMessage) {
-      elements.openMessage.textContent = availability.message || '';
-    }
+
+    const dates = Array.isArray(data.dates) && data.dates.length
+      ? data.dates
+      : [{ date: data.today, label: '', relative: 'Aujourd’hui', can_register: true, message: availability.message }];
+    const today = dates[0];
+    state.todayMessage = today?.can_register
+      ? (availability.message || '')
+      : `${today?.message || 'Inscription impossible aujourd’hui.'} Choisissez un autre jour ci-dessous.`;
+    renderDates(dates);
 
     const birthRequired = Boolean(state.requirements?.birth_date_required);
     if (elements.birthDate) elements.birthDate.required = birthRequired;
@@ -276,7 +567,8 @@
       phone: elements.phone?.value.trim() || '',
       birth_date: frenchBirthDateToIso(elements.birthDate?.value) || '',
       privacy_consent: Boolean(elements.consent?.checked),
-      allow_shared_phone: state.allowSharedPhone
+      allow_shared_phone: state.allowSharedPhone,
+      queue_date: state.queueDate
     };
   }
 

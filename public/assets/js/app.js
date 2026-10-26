@@ -1426,6 +1426,7 @@ function initPage(page) {
 
   if (page === 'dashboard') {
     initDashboardPage();
+    window.initMarkiUpcomingRegistrations?.();
     return;
   }
 

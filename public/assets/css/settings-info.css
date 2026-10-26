@@ -1,0 +1,147 @@
+/* ==========================================================
+   Paramètres > Structure et Profil professionnel
+   Fiches d'information compactes : « Libellé : valeur ».
+   ========================================================== */
+
+.v1-settings-page .settings-info-card {
+  height: auto;
+  min-height: 0;
+  padding: var(--mk-space-4);
+  gap: var(--mk-space-3);
+}
+
+.settings-info-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--mk-space-3);
+}
+
+.settings-info-card__head .v1-section-icon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+}
+
+.settings-info-card__head h3 {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--mk-space-2);
+  margin: 0;
+  color: var(--mk-text-main);
+  font-size: var(--mk-font-size-md);
+}
+
+.settings-info-card__head .v1-settings-edit-button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 var(--mk-space-3);
+  font-size: var(--mk-font-size-sm);
+}
+
+.settings-info-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.settings-info-list > div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--mk-space-3);
+  padding: 7px 0;
+  border-top: 1px solid var(--mk-border-color);
+}
+
+.settings-info-list > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.settings-info-list dt {
+  margin: 0;
+  color: var(--mk-text-muted);
+  font-size: var(--mk-font-size-sm);
+  font-weight: var(--mk-font-weight-regular);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.settings-info-list dt::after {
+  content: " :";
+}
+
+.settings-info-list dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--mk-text-main);
+  font-size: var(--mk-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.settings-info-list dd strong {
+  font-weight: var(--mk-font-weight-semibold);
+}
+
+.settings-info-list__muted {
+  color: var(--mk-text-muted);
+}
+
+.settings-info-list .v1-settings-timezone {
+  display: flex;
+  align-items: center;
+  gap: var(--mk-space-2);
+}
+
+.settings-info-list .v1-settings-timezone img {
+  width: 20px;
+  height: 14px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+@media (max-width: 560px) {
+  .v1-settings-page .settings-info-card {
+    padding: var(--mk-space-3);
+  }
+
+  .settings-info-list > div {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: var(--mk-space-2);
+  }
+}
+
+/* ==========================================================
+   Bandeau d'abonnement (fin proche / délai de grâce)
+   ========================================================== */
+
+.subscription-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mk-space-2);
+  margin: var(--mk-space-2) var(--mk-space-4) 0;
+  padding: var(--mk-space-2) var(--mk-space-3);
+  border: 1px solid var(--mk-color-warning);
+  border-radius: var(--mk-radius-md);
+  background: var(--mk-color-warning-soft);
+  color: var(--mk-color-warning-text);
+  font-size: var(--mk-font-size-sm);
+  line-height: var(--mk-line-normal);
+}
+
+.subscription-banner p {
+  margin: 0;
+}
+
+.subscription-banner .mk-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.subscription-banner--grace {
+  border-color: var(--mk-color-danger);
+  background: var(--mk-color-danger-soft);
+  color: var(--mk-color-danger-text);
+}

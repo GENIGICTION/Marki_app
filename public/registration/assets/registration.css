@@ -1638,3 +1638,426 @@ button:disabled {
     top: 22px;
   }
 }
+
+/* ==========================================================================
+   Horaires du cabinet — sous le formulaire, discret et compact
+   ========================================================================== */
+
+.public-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 24px 24px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--public-border);
+}
+
+.public-schedule[hidden],
+.public-schedule [hidden] {
+  display: none !important;
+}
+
+.public-schedule__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--public-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.public-schedule__title .mk-icon {
+  color: var(--public-primary);
+}
+
+.public-schedule__subtitle {
+  margin: 0 0 6px;
+  color: var(--public-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Aujourd'hui / Demain : une ligne chacun */
+
+.public-schedule__days {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--public-border);
+  border-radius: 14px;
+  list-style: none;
+  overflow: hidden;
+}
+
+.public-schedule__day {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 10px 14px;
+  background: var(--public-surface);
+}
+
+.public-schedule__day + .public-schedule__day {
+  border-top: 1px solid var(--public-border);
+}
+
+.public-schedule__when {
+  color: var(--public-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.public-schedule__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--public-surface-alt);
+  color: var(--public-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.public-schedule__status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.public-schedule__day[data-status="open"] .public-schedule__status {
+  background: var(--public-success-soft);
+  color: var(--public-success-text);
+}
+
+.public-schedule__day[data-status="closed"] .public-schedule__status {
+  background: var(--public-danger-soft);
+  color: var(--public-danger-text);
+}
+
+.public-schedule__hours {
+  grid-column: 1 / -1;
+  color: var(--public-text-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Notes */
+
+.public-schedule__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-schedule__note {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--public-surface-alt);
+  color: var(--public-text);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.public-schedule__note strong {
+  color: var(--public-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.public-schedule__note.is-important {
+  background: var(--public-warning-soft);
+  color: var(--public-warning-text);
+}
+
+.public-schedule__note.is-important strong {
+  color: var(--public-warning-text);
+}
+
+.public-schedule__note.is-general {
+  background: transparent;
+  padding: 0 2px;
+  color: var(--public-text-muted);
+  font-style: italic;
+}
+
+/* Semaine */
+
+.public-schedule__week summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--public-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.public-schedule__week summary::-webkit-details-marker {
+  display: none;
+}
+
+.public-schedule__week summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+.public-schedule__week[open] summary::after {
+  transform: rotate(225deg) translateY(-1px);
+}
+
+.public-schedule__week dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--public-surface-alt);
+  font-size: 0.8125rem;
+}
+
+.public-schedule__week dt {
+  color: var(--public-text-muted);
+}
+
+.public-schedule__week dd {
+  margin: 0;
+  color: var(--public-text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.public-schedule__week dd.is-closed {
+  color: var(--public-text-muted);
+}
+
+@media (max-width: 480px) {
+  .public-schedule {
+    margin: 4px 16px 18px;
+    padding-top: 16px;
+  }
+}
+
+/* ==========================================================================
+   Choix du jour de passage (inscription à l'avance)
+   ========================================================================== */
+
+.public-date-field {
+  margin: 0 0 4px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.public-date-field[hidden] {
+  display: none;
+}
+
+.public-date-field legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--public-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.public-date-field legend span {
+  color: var(--public-danger);
+}
+
+.public-date-options {
+  display: flex;
+  gap: 8px;
+  margin: 0 -4px;
+  padding: 2px 4px 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.public-date-options::-webkit-scrollbar {
+  display: none;
+}
+
+.public-date-option {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 86px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--public-border);
+  border-radius: 14px;
+  background: var(--public-surface);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.public-date-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.public-date-option strong {
+  color: var(--public-text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.public-date-option small {
+  color: var(--public-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.public-date-option:has(input:checked) {
+  border-color: var(--public-primary);
+  background: rgba(124, 58, 237, 0.06);
+  box-shadow: 0 0 0 3px var(--public-primary-glow);
+}
+
+.public-date-option:has(input:checked) strong {
+  color: var(--public-primary-dark);
+}
+
+.public-date-option:has(input:focus-visible) {
+  outline: 2px solid var(--public-border-focus);
+  outline-offset: 2px;
+}
+
+.public-date-option.is-disabled {
+  border-style: dashed;
+  background: var(--public-surface-alt);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.public-date-option.is-disabled small {
+  color: var(--public-danger-text);
+}
+
+/* ==========================================================================
+   « Déjà inscrit ? Suivez votre tour »
+   ========================================================================== */
+
+.public-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 24px 0;
+}
+
+.public-lookup[hidden],
+.public-lookup [hidden] {
+  display: none !important;
+}
+
+.public-lookup__saved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--public-success-border);
+  border-radius: 14px;
+  background: var(--public-success-soft);
+  color: var(--public-success-text);
+  font-size: 0.875rem;
+}
+
+.public-lookup__saved-link {
+  color: var(--public-success-text);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.public-lookup__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--public-primary);
+  border-radius: 14px;
+  background: rgba(124, 58, 237, 0.05);
+  color: var(--public-primary-dark);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.public-lookup__toggle span {
+  flex: 1 1 auto;
+}
+
+.public-lookup__toggle strong {
+  font-weight: 700;
+}
+
+.public-lookup__chevron {
+  transition: transform 0.2s ease;
+}
+
+.public-lookup__toggle[aria-expanded="true"] .public-lookup__chevron {
+  transform: rotate(180deg);
+}
+
+.public-lookup__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--public-border);
+  border-radius: 14px;
+  background: var(--public-surface-alt);
+}
+
+.public-lookup__hint {
+  margin: 0;
+  color: var(--public-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.public-lookup__form .public-registration-field {
+  margin: 0;
+}
+
+.public-lookup__submit {
+  border: 0;
+  background: var(--public-primary);
+  color: #fff;
+}
+
+@media (max-width: 480px) {
+  .public-lookup {
+    margin: 4px 16px 0;
+  }
+}

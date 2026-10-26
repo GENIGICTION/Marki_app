@@ -473,6 +473,11 @@
       byId('qr-max-registrations').value =
         data.settings?.max_public_registrations_per_day ?? '';
     }
+    if (byId('qr-advance-days')) {
+      byId('qr-advance-days').value = String(
+        Number(data.settings?.advance_registration_days || 0)
+      );
+    }
     if (byId('qr-session-duration')) {
       byId('qr-session-duration').value = String(
         Number(data.settings?.public_session_duration_minutes || 720)
@@ -556,6 +561,8 @@
         byId('qr-max-registrations')?.value.trim() || '',
       public_session_duration_minutes:
         Number(byId('qr-session-duration')?.value || 720),
+      advance_registration_days:
+        Number(byId('qr-advance-days')?.value || 0),
       messages: {
         day_not_open: byId('qr-message-day-not-open')?.value.trim() || '',
         registration_open: byId('qr-message-open')?.value.trim() || '',

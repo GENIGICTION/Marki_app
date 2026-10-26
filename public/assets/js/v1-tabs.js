@@ -1528,6 +1528,10 @@
       await window.initMarkiPublicRegistration?.();
     }
 
+    if (document.getElementById('doctor-schedule-section')) {
+      await window.initMarkiDoctorSchedule?.();
+    }
+
     if (document.getElementById('team-settings-section')) {
       await window.initMarkiTeam?.();
     }
